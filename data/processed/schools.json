@@ -1,0 +1,273 @@
+{
+  "schemaVersion": "1.0",
+  "districtName": "Example Unified School District (demo)",
+  "mapCenter": [
+    -73.948,
+    40.648
+  ],
+  "mapZoom": 12,
+  "schools": [
+    {
+      "id": "e-riverside",
+      "name": "Riverside Elementary",
+      "level": "elementary",
+      "feederMiddleId": "m-harbor",
+      "enrollment": 420,
+      "demographics": {
+        "ellPercent": 0.08,
+        "swdPercent": 0.14,
+        "frlPercent": 0.42
+      },
+      "facilities": {
+        "buildingSqFt": 78000,
+        "siteAcres": 6.2,
+        "yearBuilt": 1998,
+        "capacity": 480
+      }
+    },
+    {
+      "id": "e-maple",
+      "name": "Maple Street Elementary",
+      "level": "elementary",
+      "feederMiddleId": "m-harbor",
+      "enrollment": 385,
+      "demographics": {
+        "ellPercent": 0.12,
+        "swdPercent": 0.16,
+        "frlPercent": 0.55
+      },
+      "facilities": {
+        "buildingSqFt": 72000,
+        "siteAcres": 5.1,
+        "yearBuilt": 1965,
+        "capacity": 420
+      }
+    },
+    {
+      "id": "e-oak",
+      "name": "Oak Lane Elementary",
+      "level": "elementary",
+      "feederMiddleId": "m-centennial",
+      "enrollment": 510,
+      "demographics": {
+        "ellPercent": 0.18,
+        "swdPercent": 0.12,
+        "frlPercent": 0.62
+      },
+      "facilities": {
+        "buildingSqFt": 88000,
+        "siteAcres": 7.4,
+        "yearBuilt": 2008,
+        "capacity": 540
+      }
+    },
+    {
+      "id": "e-parkview",
+      "name": "Parkview Elementary",
+      "level": "elementary",
+      "feederMiddleId": "m-centennial",
+      "enrollment": 445,
+      "demographics": {
+        "ellPercent": 0.11,
+        "swdPercent": 0.15,
+        "frlPercent": 0.48
+      },
+      "facilities": {
+        "buildingSqFt": 69000,
+        "siteAcres": 5.8,
+        "yearBuilt": 1988,
+        "capacity": 460
+      }
+    },
+    {
+      "id": "e-sunnyside",
+      "name": "Sunnyside Elementary",
+      "level": "elementary",
+      "feederMiddleId": "m-lakeside",
+      "enrollment": 398,
+      "demographics": {
+        "ellPercent": 0.15,
+        "swdPercent": 0.17,
+        "frlPercent": 0.51
+      },
+      "facilities": {
+        "buildingSqFt": 71000,
+        "siteAcres": 6.0,
+        "yearBuilt": 1975,
+        "capacity": 430
+      }
+    },
+    {
+      "id": "e-crestwood",
+      "name": "Crestwood Elementary",
+      "level": "elementary",
+      "feederMiddleId": "m-lakeside",
+      "enrollment": 362,
+      "demographics": {
+        "ellPercent": 0.09,
+        "swdPercent": 0.13,
+        "frlPercent": 0.39
+      },
+      "facilities": {
+        "buildingSqFt": 65000,
+        "siteAcres": 4.9,
+        "yearBuilt": 2001,
+        "capacity": 400
+      }
+    },
+    {
+      "id": "m-harbor",
+      "name": "Harbor View Middle",
+      "level": "middle",
+      "feederMiddleId": null,
+      "enrollment": 890,
+      "demographics": {
+        "ellPercent": 0.1,
+        "swdPercent": 0.15,
+        "frlPercent": 0.48
+      },
+      "facilities": {
+        "buildingSqFt": 142000,
+        "siteAcres": 11.2,
+        "yearBuilt": 2002,
+        "capacity": 950
+      }
+    },
+    {
+      "id": "m-centennial",
+      "name": "Centennial Middle",
+      "level": "middle",
+      "feederMiddleId": null,
+      "enrollment": 1020,
+      "demographics": {
+        "ellPercent": 0.14,
+        "swdPercent": 0.14,
+        "frlPercent": 0.56
+      },
+      "facilities": {
+        "buildingSqFt": 156000,
+        "siteAcres": 12.0,
+        "yearBuilt": 1994,
+        "capacity": 1100
+      }
+    },
+    {
+      "id": "m-lakeside",
+      "name": "Lakeside Middle",
+      "level": "middle",
+      "feederMiddleId": null,
+      "enrollment": 765,
+      "demographics": {
+        "ellPercent": 0.12,
+        "swdPercent": 0.16,
+        "frlPercent": 0.45
+      },
+      "facilities": {
+        "buildingSqFt": 128000,
+        "siteAcres": 9.8,
+        "yearBuilt": 1988,
+        "capacity": 820
+      }
+    },
+    {
+      "id": "h-north",
+      "name": "North Regional High",
+      "level": "high",
+      "feederMiddleId": null,
+      "enrollment": 1680,
+      "demographics": {
+        "ellPercent": 0.11,
+        "swdPercent": 0.13,
+        "frlPercent": 0.44
+      },
+      "facilities": {
+        "buildingSqFt": 285000,
+        "siteAcres": 22.0,
+        "yearBuilt": 1972,
+        "capacity": 1800
+      }
+    },
+    {
+      "id": "h-south",
+      "name": "South Regional High",
+      "level": "high",
+      "feederMiddleId": null,
+      "enrollment": 1520,
+      "demographics": {
+        "ellPercent": 0.13,
+        "swdPercent": 0.15,
+        "frlPercent": 0.52
+      },
+      "facilities": {
+        "buildingSqFt": 268000,
+        "siteAcres": 20.5,
+        "yearBuilt": 2005,
+        "capacity": 1650
+      }
+    }
+  ],
+  "flowsElemToMiddle": [
+    {
+      "from": "e-riverside",
+      "to": "m-harbor",
+      "count": 210
+    },
+    {
+      "from": "e-maple",
+      "to": "m-harbor",
+      "count": 210
+    },
+    {
+      "from": "e-oak",
+      "to": "m-centennial",
+      "count": 255
+    },
+    {
+      "from": "e-parkview",
+      "to": "m-centennial",
+      "count": 255
+    },
+    {
+      "from": "e-sunnyside",
+      "to": "m-lakeside",
+      "count": 199
+    },
+    {
+      "from": "e-crestwood",
+      "to": "m-lakeside",
+      "count": 199
+    }
+  ],
+  "flowsMiddleToHigh": [
+    {
+      "from": "m-harbor",
+      "to": "h-north",
+      "count": 445
+    },
+    {
+      "from": "m-harbor",
+      "to": "h-south",
+      "count": 445
+    },
+    {
+      "from": "m-centennial",
+      "to": "h-north",
+      "count": 510
+    },
+    {
+      "from": "m-centennial",
+      "to": "h-south",
+      "count": 510
+    },
+    {
+      "from": "m-lakeside",
+      "to": "h-north",
+      "count": 382
+    },
+    {
+      "from": "m-lakeside",
+      "to": "h-south",
+      "count": 383
+    }
+  ]
+}

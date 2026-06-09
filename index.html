@@ -1,0 +1,2227 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Brevard County Public Schools | District Exploration Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Libre+Franklin:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://api.mapbox.com/mapbox-gl-js/v3.8.0/mapbox-gl.css"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css?v=20260527-6" />
+    <script>
+      /* Pre-fetch dashboard data files as early as possible so they are warm by
+         the time the user finishes reading the welcome page and enters the
+         password. Promises are stashed on window.__prefetchPromises so the main
+         app.js code can pick them up instead of issuing fresh network requests.
+         Each promise resolves to the parsed JSON object (or raw CSV text), or
+         to null/'' if the request failed — preserving the existing app.js
+         fallback semantics. */
+      (function () {
+        if (typeof fetch !== "function") return;
+        window.__prefetchPromises = window.__prefetchPromises || Object.create(null);
+        var files = [
+          ["geo/SchoolLocations.json", "json"],
+          ["data/school_master.csv", "text"],
+          ["geo/ESBoundaries.json", "json"],
+          ["geo/MSBoundaries.json", "json"],
+          ["geo/HSBoundaries.json", "json"],
+          ["data/processed/sankey_es_ms.json", "json"],
+          ["geo/StudentHexagons.bundle.json", "json"],
+          ["geo/SchoolParcels.geojson", "json"],
+          ["geo/SchoolBoardDistricts.geojson", "json"],
+          ["geo/MunicipalBoundaries.geojson", "json"],
+          ["geo/CharterSchoolLocations.geojson", "json"],
+          ["geo/PrivateSchools.json", "json"],
+          ["geo/HomeschoolStudentHexagons.geojson", "json"],
+          ["data/processed/meadowlane_capture_override.json", "json"],
+          ["data/processed/ese_feeder_matrix.json", "json"],
+          ["geo/SchoolIsochrones.geojson", "json"],
+          ["data/processed/bps_employee_count_by_msid.json", "json"]
+        ];
+        files.forEach(function (entry) {
+          var path = entry[0];
+          var parseAs = entry[1];
+          if (window.__prefetchPromises[path]) return;
+          window.__prefetchPromises[path] = fetch(path)
+            .then(function (r) {
+              if (!r || !r.ok) {
+                return parseAs === "text" ? "" : null;
+              }
+              return parseAs === "text" ? r.text() : r.json();
+            })
+            .catch(function () {
+              return parseAs === "text" ? "" : null;
+            });
+        });
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="login-gate" class="login-gate login-gate--welcome">
+      <div class="login-gate__inner login-gate__inner--welcome">
+        <header class="welcome-header">
+          <img
+            class="welcome-header__logo"
+            src="assets/brevard-public-schools.png"
+            alt="Brevard Public Schools"
+          />
+          <div class="welcome-header__text">
+            <h1 class="login-gate__title welcome-title">
+              <span class="login-gate__title-line welcome-title__line--district"
+                >Welcome to the Brevard Public Schools</span
+              >
+              <span class="login-gate__title-line login-gate__title-line--product welcome-title__line--product"
+                >District Exploration Dashboard!</span
+              >
+            </h1>
+            <p class="welcome-subtitle">
+              The dashboard lets you learn about
+              <strong>existing conditions</strong> at every school,
+              <strong>test future scenarios</strong>, and
+              <strong>visualize these layers on an interactive district map</strong>.
+            </p>
+          </div>
+        </header>
+
+        <div class="welcome-hero">
+          <div class="welcome-hero__left">
+            <p class="welcome-intro">
+              The educational marketplace is changing to include options beyond
+              traditional public schools. The school age population in Brevard
+              County is also changing. As such, Brevard Public Schools are
+              experiencing changes in enrollment patterns that have resulted in
+              some schools becoming <strong>under-enrolled</strong> and some
+              schools <strong>over-enrolled</strong>. Projections indicate
+              these trends will likely continue.
+            </p>
+            <p class="welcome-body">
+              In order to best serve students and the community, Brevard Public
+              Schools has undertaken an analysis of school enrollment and
+              demographic patterns that will allow the District to make
+              <strong>strategic decisions</strong> to use facility and
+              financial resources as effectively as possible.
+            </p>
+            <p class="welcome-body">
+              As an initial step in this process, the District has engaged
+              Perkins Eastman to develop an interactive web tool to display and
+              analyze enrollment and demographic data. You are invited to
+              explore the tool, review the data, and build scenarios that could
+              more efficiently utilize school facilities.
+            </p>
+            <p class="welcome-excitement welcome-excitement--callout">
+              You are also invited to take a
+              <a
+                class="welcome-survey-link"
+                href="https://docs.google.com/forms/d/e/1FAIpQLSczqbsV7tOwe8UVmXN50WWDmG-xpwE8g59dSCoKxprns9IUyA/viewform"
+                target="_blank"
+                rel="noopener noreferrer"
+                ><strong>brief survey about educational preferences</strong></a
+              >
+              that will help shape the future of school facilities in Brevard.
+              The
+              web tool and the survey will be open through
+              <strong>Fall 2026</strong>, after which the project team will
+              compile the data and present the results to the community.
+            </p>
+          </div>
+
+          <div class="welcome-hero__right">
+            <h2 class="welcome-section__title welcome-video-title">Video walkthrough</h2>
+            <!--
+              Tutorial video placeholder.
+              To embed a YouTube video here, replace the inner contents of
+              .welcome-video-frame with an iframe, e.g.:
+                <iframe
+                  class="welcome-video-iframe"
+                  src="https://www.youtube.com/embed/YOUR_VIDEO_ID"
+                  title="District Exploration Dashboard tutorial"
+                  frameborder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowfullscreen
+                ></iframe>
+              and remove the placeholder copy + button below.
+            -->
+            <div class="welcome-video-frame" aria-label="Tutorial video placeholder">
+              <div class="welcome-video-placeholder">
+                <p class="welcome-video-placeholder__title">Video tutorial coming soon</p>
+                <p class="welcome-video-placeholder__hint">
+                  A short guided walkthrough of the dashboard will be available here.
+                </p>
+              </div>
+            </div>
+            <a
+              class="welcome-video-link"
+              href="#"
+              aria-disabled="true"
+              tabindex="-1"
+              onclick="event.preventDefault();"
+            >
+              Watch tutorial (coming soon)
+            </a>
+
+            <div class="welcome-explore" aria-label="Ways to explore the dashboard">
+              <h3 class="welcome-explore__title">Explore at your own pace</h3>
+              <p class="welcome-explore__intro">
+                Dig deep into district-wide data, or just look at your own
+                school &mdash; it&rsquo;s up to you. There&rsquo;s no right or
+                wrong way to use this dashboard; these are simply tools to
+                explore what interests you.
+              </p>
+              <ul class="welcome-explore__list">
+                <li class="welcome-explore__item">
+                  <span class="welcome-explore__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="11" cy="11" r="7"></circle>
+                      <line x1="16.5" y1="16.5" x2="21" y2="21"></line>
+                    </svg>
+                  </span>
+                  <span class="welcome-explore__text">
+                    See what&rsquo;s happening at your school today in
+                    <button type="button" class="welcome-explore__link" data-nav-page="existing">Existing Conditions</button>.
+                  </span>
+                </li>
+                <li class="welcome-explore__item">
+                  <span class="welcome-explore__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <g transform="translate(0,24) scale(1,-1)">
+                        <path d="M5 3v4a4 4 0 0 0 4 4h6a4 4 0 0 1 4 4v4"></path>
+                        <polyline points="16 17 19 20 22 17"></polyline>
+                      </g>
+                    </svg>
+                  </span>
+                  <span class="welcome-explore__text">
+                    Test merging nearby schools or grade levels in
+                    <button type="button" class="welcome-explore__link" data-nav-page="scenario" data-nav-subtab="scenario">Enrollment Planning</button>.
+                  </span>
+                </li>
+                <li class="welcome-explore__item">
+                  <span class="welcome-explore__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M12 20h9"></path>
+                      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path>
+                    </svg>
+                  </span>
+                  <span class="welcome-explore__text">
+                    Customize your own attendance boundaries in the
+                    <button type="button" class="welcome-explore__link" data-nav-page="scenario" data-nav-subtab="sandbox">Boundary Sandbox</button>.
+                  </span>
+                </li>
+                <li class="welcome-explore__item">
+                  <span class="welcome-explore__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 11.5a8.5 8.5 0 0 1-12.3 7.6L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5z"></path>
+                    </svg>
+                  </span>
+                  <span class="welcome-explore__text">
+                    However you explore, tell us what you think in
+                    <button type="button" class="welcome-explore__link" data-nav-page="feedback">Share your Feedback</button>.
+                  </span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <section class="welcome-section welcome-section--auth">
+          <div class="welcome-auth-primary">
+            <h2 class="welcome-section__title">Enter the dashboard</h2>
+            <p class="welcome-auth-hint">
+              Enter the dashboard password to continue. This password gate will
+              be removed once publicized.
+            </p>
+            <p class="welcome-device-note" role="note">
+              <strong>For the best experience,</strong> use a desktop, laptop, or
+              tablet. This dashboard is not well-suited to smartphones or other
+              small mobile devices.
+            </p>
+            <form id="login-form" class="login-gate__form welcome-form" novalidate>
+              <label class="visually-hidden" for="login-password">Password</label>
+              <input
+                type="password"
+                id="login-password"
+                class="login-gate__input"
+                name="password"
+                placeholder="Enter password"
+                autocomplete="current-password"
+                required
+              />
+              <p id="login-error" class="login-gate__error" role="alert" hidden>
+                Incorrect password.
+              </p>
+              <button type="submit" class="login-gate__submit">Enter Dashboard</button>
+            </form>
+          </div>
+          <button
+            type="button"
+            id="welcome-back-to-dashboard-btn"
+            class="login-gate__submit welcome-back-btn"
+            hidden
+          >
+            Back to Dashboard
+          </button>
+        </section>
+      </div>
+    </div>
+
+    <div class="dashboard" id="dashboard" hidden>
+      <aside class="dashboard-sidebar" id="dashboard-sidebar" aria-label="Dashboard data">
+        <header class="sidebar-top-bar">
+          <div class="sidebar-top-bar__row sidebar-top-bar__row--heading">
+            <h1 class="sidebar-brand-line">
+              <span id="sidebar-brand-main" class="sidebar-brand-main"
+                ><span class="sidebar-brand-district">Brevard County Public Schools |</span
+                ><span class="sidebar-brand-product"> District Exploration Dashboard</span></span
+              >
+              <span id="sidebar-view-title" class="sidebar-brand-view">Existing Conditions</span>
+            </h1>
+            <div class="sidebar-credits" aria-label="Developed for Brevard Public Schools by Perkins Eastman">
+              <span class="sidebar-credits__text">Developed for</span>
+              <img
+                class="sidebar-credits__logo sidebar-credits__logo--brevard"
+                src="assets/brevard-public-schools.png"
+                alt="Brevard Public Schools"
+              />
+              <span class="sidebar-credits__text">by</span>
+              <img
+                class="sidebar-credits__logo sidebar-credits__logo--pe"
+                src="assets/perkins-eastman.png"
+                alt="Perkins Eastman"
+              />
+            </div>
+          </div>
+          <div class="sidebar-top-bar__row sidebar-top-bar__row--switcher">
+            <button
+              type="button"
+              id="view-tutorial-btn"
+              class="view-tutorial-btn"
+              title="Show the welcome page and tutorial again"
+              aria-label="View tutorial"
+            >
+              View Tutorial
+            </button>
+            <nav class="page-journey" aria-label="Dashboard journey">
+              <ol class="page-journey__track" role="tablist">
+                <li class="page-journey__item">
+                  <button
+                    type="button"
+                    role="tab"
+                    id="page-tab-existing"
+                    class="page-journey__btn is-active"
+                    data-page="existing"
+                    data-step="1"
+                    aria-selected="true"
+                    aria-controls="page-existing"
+                    title="Existing Conditions"
+                  >
+                    <span class="page-journey__num" aria-hidden="true">1</span>
+                    <span class="page-journey__label">Existing Conditions</span>
+                  </button>
+                </li>
+                <li class="page-journey__connector" aria-hidden="true"></li>
+                <li class="page-journey__item">
+                  <button
+                    type="button"
+                    role="tab"
+                    id="page-tab-scenario"
+                    class="page-journey__btn"
+                    data-page="scenario"
+                    data-step="2"
+                    aria-selected="false"
+                    aria-controls="page-scenario"
+                    title="Scenario Planning"
+                  >
+                    <span class="page-journey__num" aria-hidden="true">2</span>
+                    <span class="page-journey__label">Scenario Planning</span>
+                  </button>
+                </li>
+                <li class="page-journey__connector" aria-hidden="true"></li>
+                <li class="page-journey__item">
+                  <button
+                    type="button"
+                    role="tab"
+                    id="page-tab-feedback"
+                    class="page-journey__btn"
+                    data-page="feedback"
+                    data-step="3"
+                    aria-selected="false"
+                    aria-controls="page-feedback"
+                    title="Share your Feedback"
+                  >
+                    <span class="page-journey__num" aria-hidden="true">3</span>
+                    <span class="page-journey__label">Share your Feedback</span>
+                  </button>
+                </li>
+              </ol>
+            </nav>
+          </div>
+        </header>
+
+        <div
+          id="page-existing"
+          class="sidebar-page-panel"
+          role="tabpanel"
+          aria-labelledby="sidebar-brand-main sidebar-view-title"
+        >
+          <details
+            class="panel-howto"
+            aria-label="Existing Conditions instructions"
+            open
+          >
+            <summary class="panel-howto__title">How to use<span class="panel-howto__hint">(click to collapse)</span></summary>
+            <ul class="panel-howto__list">
+              <li>
+                See today’s state of each school: enrollment, capacity, utilization,
+                demographics, and where its students come from.
+              </li>
+              <li>
+                Pick a school from the dropdown below to load its profile and center the
+                school location on the map.
+              </li>
+              <li>
+                In the map menu, toggle layers on or off (school locations, assignment
+                boundaries, travel sheds, and more) to compare context across the district.
+              </li>
+            </ul>
+          </details>
+
+          <div class="dashboard-controls">
+            <label class="visually-hidden" for="school-select">Select a school</label>
+            <div class="school-select-wrap">
+              <select id="school-select" class="school-select" disabled>
+                <option value="">Loading schools</option>
+              </select>
+            </div>
+          </div>
+          <div class="school-details" aria-live="polite">
+            <p class="school-details-line">
+              <span id="school-details-primary" class="school-details-text school-details-placeholder"
+                >Name of School | Grades Served | Address | 2025 School Grade</span
+              >
+            </p>
+            <p class="school-details-line school-details-meta">
+              <span id="school-details-secondary" class="school-details-text school-details-placeholder"
+                >Year Opened | Age of Site | Year of Last Major Renovation | Size of Site (Acres) | Count of On-Site BPS Employees</span
+              >
+            </p>
+          </div>
+
+        <section class="kpi-section" aria-label="Key metrics">
+          <div class="kpi-grid kpi-grid--primary">
+            <article class="kpi-card">
+              <h2 class="kpi-label">
+                '25-26 Enrollment<button
+                  type="button"
+                  class="info-tip"
+                  title="The total number of students currently attending this school in the 2025-26 school year."
+                  aria-label="More info: '25-26 Enrollment"
+                >?</button>
+              </h2>
+              <p class="kpi-value kpi-value--placeholder" id="kpi-enrollment">—</p>
+            </article>
+            <article class="kpi-card">
+              <h2 class="kpi-label">
+                Factored Capacity<button
+                  type="button"
+                  class="info-tip"
+                  title="The maximum number of student seats the building is designed for everyday instruction, not the maximum number of people allowed inside the building for life-safety purposes. This capacity includes temporary and portable classrooms."
+                  aria-label="More info: Factored Capacity"
+                >?</button>
+              </h2>
+              <p class="kpi-value kpi-value--placeholder" id="kpi-capacity">—</p>
+            </article>
+            <article class="kpi-card">
+              <h2 class="kpi-label">
+                Utilization<button
+                  type="button"
+                  class="info-tip"
+                  title="How full the school is right now relative to its factored capacity. Above 100% means more students than seats; below 100% means room to spare."
+                  aria-label="More info: Utilization"
+                >?</button>
+              </h2>
+              <p class="kpi-value kpi-value--placeholder" id="kpi-utilization">—</p>
+            </article>
+          </div>
+          <div class="kpi-capture-panel">
+            <div class="kpi-capture-panel__heading-row">
+              <h2 class="enrollment-chart-heading kpi-capture-panel__title">
+                Attendance Boundary Capture Rates<button
+                  type="button"
+                  class="info-tip"
+                  title="Of grade-eligible students who live within this school's attendance boundary, where they go to school. Each card below shows the share going to one type of school."
+                  aria-label="More info: Attendance Boundary Capture Rates"
+                >?</button>
+              </h2>
+              <label class="kpi-capture-homeschool-toggle">
+                <input
+                  type="checkbox"
+                  id="toggle-include-homeschool-capture"
+                  autocomplete="off"
+                />
+                <span>Include Homeschool Students</span>
+              </label>
+            </div>
+            <div
+              class="kpi-grid kpi-grid--capture"
+              id="kpi-grid-capture"
+              role="group"
+              aria-label="Attendance boundary capture rates by category"
+            >
+              <article class="kpi-card">
+                <p class="kpi-capture-card-label">
+                  <span id="kpi-capture-assigned-label">Selected School</span><button
+                    type="button"
+                    class="info-tip"
+                    title="Of grade-eligible students who live within this attendance boundary, the share who attend this school."
+                    aria-label="More info: Selected school capture rate"
+                  >?</button>
+                </p>
+                <p class="kpi-value kpi-value--placeholder" id="kpi-assignment-capture">—</p>
+              </article>
+              <article class="kpi-card">
+                <p class="kpi-capture-card-label">
+                  Other Traditional School<button
+                    type="button"
+                    class="info-tip"
+                    title="Of grade-eligible students who live within this attendance boundary, the share who attend a different traditional public school."
+                    aria-label="More info: Other Traditional School capture rate"
+                  >?</button>
+                </p>
+                <p class="kpi-value kpi-value--placeholder" id="kpi-other-district-capture">—</p>
+              </article>
+              <article class="kpi-card">
+                <p class="kpi-capture-card-label">
+                  Choice School<button
+                    type="button"
+                    class="info-tip"
+                    title="Of grade-eligible students who live within this attendance boundary, the share who attend a public choice school."
+                    aria-label="More info: Choice School capture rate"
+                  >?</button>
+                </p>
+                <p class="kpi-value kpi-value--placeholder" id="kpi-choice-capture">—</p>
+              </article>
+              <article class="kpi-card">
+                <p class="kpi-capture-card-label">
+                  Charter School<button
+                    type="button"
+                    class="info-tip"
+                    title="Of grade-eligible students who live within this attendance boundary, the share who attend a charter school."
+                    aria-label="More info: Charter School capture rate"
+                  >?</button>
+                </p>
+                <p class="kpi-value kpi-value--placeholder" id="kpi-charter-capture">—</p>
+              </article>
+              <article class="kpi-card kpi-card--homeschool-capture" id="kpi-card-homeschool-capture" hidden>
+                <p class="kpi-capture-card-label">
+                  Home School<button
+                    type="button"
+                    class="info-tip"
+                    title="Of grade-eligible students who live within this attendance boundary, the share who are home-schooled."
+                    aria-label="More info: Home School capture rate"
+                  >?</button>
+                </p>
+                <p class="kpi-value kpi-value--placeholder" id="kpi-homeschool-capture">—</p>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <section class="enrollment-chart-panel" aria-label="Enrollment history and projections">
+          <h2 class="enrollment-chart-heading">
+            <span id="main-enrollment-chart-heading">Enrollment over time</span><button
+              type="button"
+              class="info-tip"
+              title="How many students have attended this school each year, with projections for upcoming years."
+              aria-label="More info: Enrollment over time"
+            >?</button>
+          </h2>
+          <div id="enrollment-chart" class="enrollment-chart" aria-live="polite">
+            <p class="enrollment-chart-empty">Select a school to view enrollment trends.</p>
+          </div>
+        </section>
+
+        <section class="sankey-panel" id="sankey-panel" aria-label="Feeder school transitions">
+          <h2 class="sankey-heading">
+            Feeder Flows by Assignment Area Boundary, 2024-25 to 2025-26<button
+              type="button"
+              class="info-tip"
+              title="Where students from this school are zoned to attend next, and where new students at this school were previously zoned to attend, as they advance from elementary to middle and from middle to high. The arrows show how many students are expected to transition between schools based on attendance zoning."
+              aria-label="More info: Feeder Flows"
+            >?</button>
+          </h2>
+          <div id="sankey-row" class="sankey-row" aria-live="polite">
+            <div class="sankey-col sankey-col--es-ms">
+              <h3 class="sankey-subheading">Grades 6→7 (elementary → middle)</h3>
+              <div id="sankey-es-ms" class="sankey-chart">
+                <p class="sankey-empty">Select a school to view feeder flows.</p>
+              </div>
+            </div>
+            <div class="sankey-col sankey-col--ms-hs">
+              <h3 class="sankey-subheading">Grades 8→9 (middle → high)</h3>
+              <div id="sankey-ms-hs" class="sankey-chart">
+                <p class="sankey-empty">Select a school to view feeder flows.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="demographics-row" aria-label="Demographics charts">
+          <div class="demographics-chart-card">
+            <h3 class="demographics-chart-title">
+              <span id="demographics-ethnicity-heading">Race and Ethnicity</span><button
+                type="button"
+                class="info-tip"
+                title="The mix of student backgrounds at this school, by race and ethnicity."
+                aria-label="More info: Race and Ethnicity"
+              >?</button>
+            </h3>
+            <div
+              id="demographics-ethnicity"
+              class="demographics-chart-body"
+              aria-live="polite"
+            >
+              <p class="demographics-pie-empty">
+                Select a school to view student demographics.
+              </p>
+            </div>
+          </div>
+          <div class="demographics-chart-card">
+            <h3 class="demographics-chart-title">
+              <span id="demographics-lunch-heading">Free and Reduced Lunch</span><button
+                type="button"
+                class="info-tip"
+                title="The share of students at this school who qualify for free or reduced-price meals — a common indicator of family income in the school community."
+                aria-label="More info: Free and Reduced Lunch"
+              >?</button>
+            </h3>
+            <div
+              id="demographics-lunch"
+              class="demographics-chart-body"
+              aria-live="polite"
+            >
+              <p class="demographics-pie-empty">
+                Select a school to view student demographics.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section class="ese-feeder-section" aria-labelledby="ese-feeder-heading">
+          <h2 class="ese-feeder-heading" id="ese-feeder-heading">
+            Exceptional Student Education Program Feeder Flows<button
+              type="button"
+              class="info-tip"
+              title="For students who need specialized services (often called ESE or special education), this shows which schools send these students here and which schools accept these students from here for those programs."
+              aria-label="More info: Exceptional Student Education Program Feeder Flows"
+            >?</button>
+          </h2>
+          <div class="ese-feeder-table-wrap">
+            <table class="ese-feeder-table">
+              <thead>
+                <tr>
+                  <th scope="col" class="ese-feeder-col-program">
+                    <span class="visually-hidden">Program</span>
+                  </th>
+                  <th scope="col">Accepts students from</th>
+                  <th scope="col">Sends students to</th>
+                </tr>
+              </thead>
+              <tbody id="ese-feeder-tbody"></tbody>
+            </table>
+          </div>
+        </section>
+        </div>
+
+        <div
+          id="page-scenario"
+          class="sidebar-page-panel sidebar-page-panel--scenario"
+          role="tabpanel"
+          aria-labelledby="sidebar-brand-main sidebar-view-title"
+          hidden
+        >
+          <div class="scenario-subtab-row">
+            <div class="scenario-subtab-toggle" role="tablist" aria-label="Scenario Planning mode">
+              <button
+                type="button"
+                role="tab"
+                id="scenario-subtab-tab-scenario"
+                class="scenario-subtab-btn is-active"
+                data-subtab="scenario"
+                aria-selected="true"
+                aria-controls="scenario-subpanel-scenario"
+              >
+                Enrollment Planning
+              </button>
+              <button
+                type="button"
+                role="tab"
+                id="scenario-subtab-tab-sandbox"
+                class="scenario-subtab-btn"
+                data-subtab="sandbox"
+                aria-selected="false"
+                aria-controls="scenario-subpanel-sandbox"
+              >
+                Boundary Sandbox
+              </button>
+            </div>
+            <button
+              type="button"
+              id="scenario-view-tutorial-btn"
+              class="scenario-view-tutorial-btn"
+              title="Watch a video guide for this page (coming soon)."
+              aria-label="View video tutorial for this page (placeholder)"
+            >
+              View Video Tutorial for this Page
+            </button>
+            <button
+              type="button"
+              id="scenario-subtab-reset-btn"
+              class="scenario-subtab-reset-btn"
+              title="Clear this tab and start over."
+            >
+              Reset Scenario
+            </button>
+            <button
+              type="button"
+              id="scenario-save-share-btn"
+              class="scenario-save-share-btn"
+              title="Save a summary of your scenario and send it by email."
+            >
+              Save and Share Scenario
+            </button>
+          </div>
+
+          <div
+            id="scenario-subpanel-scenario"
+            class="scenario-subpanel scenario-subpanel--scenario"
+            role="tabpanel"
+            aria-labelledby="scenario-subtab-tab-scenario"
+          >
+          <details
+            class="panel-howto"
+            aria-label="Enrollment Planning instructions"
+            open
+          >
+            <summary class="panel-howto__title">How to use<span class="panel-howto__hint">(click to collapse)</span></summary>
+            <ul class="panel-howto__list">
+              <li>
+                This page allows you to explore different ways schools could be combined,
+                grade levels could be redistributed, or school boundaries could be changed.
+              </li>
+              <li>
+                Each school is designed to fit a certain number of students
+                (<strong>capacity</strong>), so these changes could balance the total number
+                of students at each school (<strong>enrollment</strong>) to make sure there
+                are the right number of students for the number of available seats
+                (<strong>utilization</strong>).
+              </li>
+              <li>
+                Pick a base school from the dropdown below to load its profile and nearby
+                schools which could be consolidated with it.
+              </li>
+              <li>
+                Check these nearby schools on or off (either the full school, or just the
+                grade levels you choose) to see what would happen to enrollment and
+                utilization if these students attended the base school instead.
+              </li>
+              <li>
+                Turn on <strong>Limit to existing feeder chains</strong> to only show the
+                schools that already send students to the base school or receive students
+                from it.
+              </li>
+              <li>
+                Scroll down to view the demographics of this merged school scenario. Explore
+                student locations and travel distances on the map.
+              </li>
+              <li>
+                Use the buttons above to reset or save and share your scenario.
+              </li>
+            </ul>
+          </details>
+
+          <div class="dashboard-controls">
+            <label class="visually-hidden" for="scenario-school-select">Select a base receiving school</label>
+            <div class="school-select-wrap">
+              <select id="scenario-school-select" class="school-select" disabled>
+                <option value="">Loading</option>
+              </select>
+            </div>
+          </div>
+          <div class="school-details scenario-school-details" aria-live="polite">
+            <p class="school-details-line">
+              <span id="scenario-details-primary" class="school-details-text school-details-placeholder"
+                >Name of School | Grades Served | Address | 2025 School Grade</span
+              >
+            </p>
+            <p class="school-details-line school-details-meta">
+              <span id="scenario-details-secondary" class="school-details-text school-details-placeholder"
+                >Year Opened | Age of Site | Year of Last Major Renovation | Size of Site (Acres) | Count of On-Site BPS Employees</span
+              >
+            </p>
+            <p class="school-details-line school-details-meta">
+              <span id="scenario-details-kpi-primary" class="school-details-text school-details-placeholder"
+                >'25-26 Enrollment: — | Factored Capacity: — | Utilization: —</span
+              >
+            </p>
+            <p class="school-details-line school-details-meta">
+              <span id="scenario-details-kpi-capture" class="school-details-text school-details-placeholder"
+                >Assignment: — | Other district: — | Choice: — | Charter: — | Homeschool: —</span
+              >
+            </p>
+          </div>
+
+          <div class="scenario-toggle-row" id="scenario-toggle-row">
+            <div class="scenario-feeder-chain-row">
+              <label class="scenario-feeder-chain-label" for="scenario-feeder-chain-only">
+                <input type="checkbox" id="scenario-feeder-chain-only" />
+                Limit to Existing Feeder Chains
+              </label>
+              <button
+                type="button"
+                class="info-tip"
+                title="When on, the list only shows schools that already send students to the base school or receive students from it. This also lets you turn on Complete Merger."
+                aria-label="More info: Limit to Existing Feeder Chains"
+              >?</button>
+            </div>
+            <div class="scenario-merger-control" id="scenario-merger-control" hidden>
+              <label class="scenario-merger-label" for="scenario-complete-merger">
+                <input type="checkbox" id="scenario-complete-merger" />
+                Complete Merger (100% of each feeder school’s enrollment)
+              </label>
+              <button
+                type="button"
+                class="info-tip"
+                title="When on, all students from each feeder school move to the combined school. When off, only the share of students who normally move up to the base school today are counted. You can only use this when Limit to Existing Feeder Chains is on."
+                aria-label="More info: Complete Merger"
+              >?</button>
+            </div>
+          </div>
+
+          <div id="scenario-data-alerts" class="scenario-data-alerts" hidden aria-live="polite"></div>
+
+          <section class="enrollment-chart-panel" aria-label="Merged enrollment history and projections">
+            <h2 class="enrollment-chart-heading">
+              <span id="scenario-enrollment-chart-heading">Merged enrollment over time (2025-26 onward)</span><button
+                type="button"
+                class="info-tip"
+                title="The number of students the combined school is expected to have each year, starting in 2025-26. It adds the base school's students to the students from the schools you check, based on the grades and merger options you pick."
+                aria-label="More info: Merged enrollment over time"
+              >?</button>
+            </h2>
+            <div class="scenario-enrollment-row">
+              <div id="scenario-enrollment-chart" class="enrollment-chart" aria-live="polite">
+                <p class="enrollment-chart-empty">Select a school to view merged enrollment trends.</p>
+              </div>
+              <aside
+                class="scenario-grade-summary"
+                aria-labelledby="scenario-grade-summary-heading"
+              >
+                <h3 class="scenario-grade-summary-heading" id="scenario-grade-summary-heading">
+                  <span id="scenario-grade-summary-year">2025-26</span>
+                  Enrollment by Grade<button
+                    type="button"
+                    class="info-tip"
+                    title="The number of students in each grade at the combined school for the highlighted year. It spreads each school's students across the grades it serves, then applies your grade and merger choices. Hover or click a bar in the chart to see a different year."
+                    aria-label="More info: enrollment by grade"
+                  >?</button>
+                </h3>
+                <div id="scenario-grade-summary-table-wrap" class="scenario-grade-summary-table-wrap" aria-live="polite">
+                  <p class="scenario-grade-summary-empty">Select a school to view enrollment by grade.</p>
+                </div>
+              </aside>
+            </div>
+          </section>
+
+          <fieldset
+            class="scenario-feeder-fieldset"
+            aria-label="Contributing schools and remaining enrollment"
+          >
+            <legend class="visually-hidden">
+              Contributing schools; remaining enrollment and utilization change where applicable
+            </legend>
+            <div class="scenario-feeder-heading-row">
+              <span class="scenario-feeder-heading-main">
+                <span id="scenario-feeder-heading-label">Closest Eligible Schools</span><button
+                  type="button"
+                  class="info-tip"
+                  title="The nearby schools that could join the base school. By default it shows up to 10 close schools whose grade levels fit with the base school. Turn on Limit to Existing Feeder Chains to show only schools that already share students with the base school. Check a school to add it, and use the grade boxes to choose which grades attend the combined school."
+                  aria-label="More info: Contributing schools"
+                >?</button>
+              </span>
+              <div class="scenario-feeder-heading-metrics">
+                <span
+                  class="scenario-feeder-grade-heading"
+                  id="scenario-feeder-grade-heading"
+                  title="The school's 2025 grade (A-F) from the Florida Department of Education, based on how students performed."
+                >
+                  2025 Grade<button
+                    type="button"
+                    class="info-tip"
+                    title="The school's 2025 grade (A-F) from the Florida Department of Education, based on how students performed. Schools without a 2025 grade, like charter, alternative, or new schools, show N/A."
+                    aria-label="More info: 2025 Grade"
+                  >?</button>
+                </span>
+                <span
+                  class="scenario-feeder-remaining-heading"
+                  id="scenario-feeder-remaining-heading"
+                  title="How many students would still attend each feeder school after some move to the combined school."
+                >
+                  Remaining Feeder School Enrollment<button
+                    type="button"
+                    class="info-tip"
+                    title="How many students would still attend each feeder school after some or all of its students move to the combined school."
+                    aria-label="More info: Remaining feeder school enrollment"
+                  >?</button>
+                </span>
+                <span
+                  class="scenario-feeder-util-heading"
+                  id="scenario-feeder-util-heading"
+                  title="How full each feeder school would be after this scenario compared to today."
+                >
+                  Change in Utilization<button
+                    type="button"
+                    class="info-tip"
+                    title="How full each feeder school would be after this scenario compared to today. Above 100% means more students than seats; below 100% means room to spare."
+                    aria-label="More info: Change in Utilization"
+                  >?</button>
+                </span>
+              </div>
+            </div>
+            <ul id="scenario-feeder-list" class="scenario-feeder-list"></ul>
+          </fieldset>
+
+          <section class="demographics-row" aria-label="Merged demographics">
+            <div class="demographics-chart-card">
+              <h3 class="demographics-chart-title">
+                Race and Ethnicity (merged)<button
+                  type="button"
+                  class="info-tip"
+                  title="The mix of student backgrounds at this school, by race and ethnicity."
+                  aria-label="More info: Race and Ethnicity (merged)"
+                >?</button>
+              </h3>
+              <div
+                id="scenario-demographics-ethnicity"
+                class="demographics-chart-body"
+                aria-live="polite"
+              >
+                <p class="demographics-pie-empty">Select a school to view merged demographics.</p>
+              </div>
+            </div>
+            <div class="demographics-chart-card">
+              <h3 class="demographics-chart-title">
+                Free and Reduced Lunch (merged)<button
+                  type="button"
+                  class="info-tip"
+                  title="The share of students at this school who qualify for free or reduced-price meals — a common indicator of family income in the school community."
+                  aria-label="More info: Free and Reduced Lunch (merged)"
+                >?</button>
+              </h3>
+              <div
+                id="scenario-demographics-lunch"
+                class="demographics-chart-body"
+                aria-live="polite"
+              >
+                <p class="demographics-pie-empty">Select a school to view merged demographics.</p>
+              </div>
+            </div>
+          </section>
+          </div>
+
+          <div
+            id="scenario-subpanel-sandbox"
+            class="scenario-subpanel scenario-subpanel--sandbox sidebar-page-panel--sandbox"
+            role="tabpanel"
+            aria-labelledby="scenario-subtab-tab-sandbox"
+            hidden
+          >
+          <details
+            class="panel-howto"
+            aria-label="Boundary sandbox instructions"
+            open
+          >
+            <summary class="panel-howto__title">How to use<span class="panel-howto__hint">(click to collapse)</span></summary>
+            <ol class="panel-howto__list">
+              <li>
+                This page lets you explore how school boundaries could be changed
+                to better align the number of students at each school to the number
+                of available seats (<strong>utilization</strong>). These changes
+                could also shorten how far students travel to school, or match
+                school boundaries better to real neighborhoods.
+              </li>
+              <li>
+                Add up to <strong>five boundaries</strong>, either starting from a
+                school&rsquo;s existing boundary or starting from scratch. Each
+                boundary gets its own color and title, which you can rename, and you
+                can click on the colors to switch the active school boundary.
+              </li>
+              <li>
+                Choose a <strong>base school</strong> (optional), and/or use the
+                <strong>map tools</strong> below to click and drag areas on the map
+                to add or erase them from your boundary. Each small hexagon is a
+                neighborhood-sized area where one or multiple students live. We group
+                the data this way to protect student privacy.
+              </li>
+              <li>
+                Pick which <strong>grade levels</strong> each boundary covers. For
+                example, choose only grades 7 and 8 for a middle school. Boundaries
+                can only overlap on the map if they do not share any of the same
+                grades.
+              </li>
+              <li>
+                Click <strong>&ldquo;+ Add Boundary&rdquo;</strong> to start the next
+                one, up to five schools total. You can go back to an earlier boundary
+                at any time. Use <strong>&ldquo;Clear active boundary&rdquo;</strong>
+                to reset your selection, or use <strong>&ldquo;Reset scenario&rdquo;</strong>
+                (above) to start your whole map over.
+              </li>
+              <li>
+                Statistics for the active boundary are shown below. The
+                <strong>summary table</strong> at the bottom of the page compares
+                enrollment, seat capacity, and utilization across all of your
+                boundaries.
+              </li>
+              <li>
+                Click <strong>&ldquo;Save and Share Scenario&rdquo;</strong> to email
+                a PDF, a short summary, and a link to your work &mdash; to yourself
+                and/or to the project team.
+              </li>
+            </ol>
+          </details>
+
+          <div class="sandbox-controls">
+            <fieldset class="sandbox-hex-tool-fieldset" aria-label="Map selection tools">
+              <legend class="sandbox-hex-tool-legend">Map selection tools</legend>
+              <div class="sandbox-hex-tool-bar">
+                <div
+                  class="sandbox-hex-tool-toggles"
+                  role="radiogroup"
+                  aria-label="Map shape: lasso or paintbrush"
+                >
+                  <label class="sandbox-hex-tool-option"
+                    ><input
+                      type="radio"
+                      name="sandbox-hex-tool"
+                      value="lasso"
+                      class="sandbox-hex-tool"
+                      id="sandbox-hex-tool-lasso"
+                      checked
+                    />
+                    <svg class="sandbox-tool-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 4c4.4 0 8 2.4 8 5.3 0 2.9-3.6 5.2-8 5.2s-8-2.3-8-5.2c0-1.7 1.2-3.2 3-4.2"/><path d="M6.5 14v2.6a2.2 2.2 0 0 0 2.2 2.2"/><circle cx="9" cy="20" r="1.1" fill="currentColor" stroke="none"/></svg>
+                    <span>Lasso</span></label
+                  >
+                  <label class="sandbox-hex-tool-option"
+                    ><input
+                      type="radio"
+                      name="sandbox-hex-tool"
+                      value="brush"
+                      class="sandbox-hex-tool"
+                      id="sandbox-hex-tool-paintbrush"
+                    />
+                    <svg class="sandbox-tool-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9.6 14.4 18 6a2.05 2.05 0 0 1 2.9 2.9l-8.4 8.4"/><path d="M9.6 14.4c-1.9 0-2.9 1-3.4 2.4C5.7 18.3 4.7 19 3.2 19c1-1 .1-2.5 1.5-3.4.9-.6 2-1 2.9-1z"/></svg>
+                    <span>Paintbrush</span></label
+                  >
+                </div>
+                <div
+                  class="sandbox-hex-tool-toggles sandbox-hex-mode-toggles"
+                  role="radiogroup"
+                  aria-label="Add or remove hexes: select or erase"
+                >
+                  <label class="sandbox-hex-tool-option"
+                    ><input
+                      type="radio"
+                      name="sandbox-hex-mode"
+                      value="select"
+                      class="sandbox-hex-mode"
+                      id="sandbox-hex-mode-select"
+                      checked
+                    />
+                    <svg class="sandbox-tool-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8.5"/><path d="M12 8.2v7.6M8.2 12h7.6"/></svg>
+                    <span>Select</span></label
+                  >
+                  <label class="sandbox-hex-tool-option"
+                    ><input
+                      type="radio"
+                      name="sandbox-hex-mode"
+                      value="erase"
+                      class="sandbox-hex-mode"
+                      id="sandbox-hex-mode-erase"
+                    />
+                    <svg class="sandbox-tool-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M8.4 18.5 4.6 14.7a1.9 1.9 0 0 1 0-2.7l7.4-7.4a1.9 1.9 0 0 1 2.7 0l3.8 3.8a1.9 1.9 0 0 1 0 2.7l-6 6z"/><path d="M8.4 18.5H20"/></svg>
+                    <span>Erase</span></label
+                  >
+                </div>
+                <div class="sandbox-hex-tool-actions" role="group" aria-label="Selection actions">
+                  <button
+                    type="button"
+                    class="sandbox-clear-btn"
+                    id="sandbox-clear-btn"
+                    title="Remove all selected hexes from the active boundary"
+                  >
+                    Clear active boundary
+                  </button>
+                </div>
+              </div>
+            </fieldset>
+            <p class="sandbox-hint sandbox-hex-count" id="sandbox-hex-count" aria-live="polite">
+              No hexes selected — use the map
+            </p>
+          </div>
+
+          <section class="sandbox-boundaries-panel" aria-labelledby="sandbox-boundaries-heading">
+            <h2 class="sandbox-boundaries-heading" id="sandbox-boundaries-heading">
+              Boundaries<button
+                type="button"
+                class="info-tip"
+                title="Add up to 5 boundaries. Click a row to pick the one you are drawing. Each boundary keeps its color, but you can rename it and choose a base school to fill it in. Two boundaries can share the same hexagon only if they do not share any of the same grades (for example, a K-6 elementary and a 7-8 middle school)."
+                aria-label="More info: Boundaries"
+              >?</button>
+              <span class="sandbox-boundaries-count" id="sandbox-boundaries-count" aria-live="polite"></span>
+            </h2>
+            <ul id="sandbox-boundaries-list" class="sandbox-boundaries-list" aria-label="Boundary list"></ul>
+            <button type="button" id="sandbox-add-boundary-btn" class="sandbox-add-boundary-btn">
+              + Add boundary
+            </button>
+            <p class="sandbox-hint" id="sandbox-overlap-notice" aria-live="polite" hidden></p>
+          </section>
+
+          <section
+            class="kpi-section sandbox-stats-section"
+            aria-label="Students in your boundary sandbox selection"
+          >
+            <h2 class="enrollment-chart-heading" id="sandbox-stats-heading">
+              Students in selection
+            </h2>
+            <p class="sandbox-placeholder" id="sandbox-stats-lead">
+              Choose hexes on the map (or a base school) to load grade, attendance, zoned,
+              and demographics from the student hex layer. Summaries update automatically as you change the selection.
+            </p>
+            <div class="sandbox-placeholder-cards">
+              <div class="sandbox-card sandbox-card--stat">
+                <h3 class="sandbox-card__title">By grade</h3>
+                <div
+                  class="sandbox-card__body"
+                  id="sandbox-card-body-grade"
+                  aria-label="Student counts by grade in selection"
+                >
+                  —
+                </div>
+              </div>
+              <div
+                class="sandbox-card sandbox-card--stat"
+                id="sandbox-card-attendance-type"
+              >
+                <h3 class="sandbox-card__title">By attendance type</h3>
+                <div
+                  class="sandbox-card__body"
+                  id="sandbox-card-body-attendance-type"
+                  aria-label="Zoned Traditional School, Other Traditional School, Charter School, and Choice School attendance in selection"
+                >
+                  —
+                </div>
+              </div>
+              <div
+                class="sandbox-stat-bicolumn"
+                role="group"
+                aria-label="By current enrollment and by current assignment"
+              >
+                <div class="sandbox-card sandbox-card--stat">
+                  <h3 class="sandbox-card__title">By current enrollment (attendance)</h3>
+                  <div
+                    class="sandbox-card__body"
+                    id="sandbox-card-body-attendance"
+                    aria-label="Students by attending school in selection"
+                  >
+                    —
+                  </div>
+                </div>
+                <div class="sandbox-card sandbox-card--stat">
+                  <h3 class="sandbox-card__title">By current assignment (zoned)</h3>
+                  <div
+                    class="sandbox-card__body"
+                    id="sandbox-card-body-zoned"
+                    aria-label="Students by zoned school in selection"
+                  >
+                    —
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section
+            class="demographics-row demographics-row--sandbox"
+            aria-label="Demographics in the current selection"
+          >
+            <h2 class="enrollment-chart-heading" id="sandbox-demographics-heading">
+              Student demographics
+            </h2>
+            <div class="demographics-row demographics-row--sandbox-inner">
+              <div class="demographics-chart-card">
+                <h3 class="demographics-chart-title">
+                  Race and Ethnicity<button
+                    type="button"
+                    class="info-tip"
+                    title="The mix of student backgrounds at this school, by race and ethnicity."
+                    aria-label="More info: Race and Ethnicity"
+                  >?</button>
+                </h3>
+                <div
+                  id="sandbox-demographics-ethnicity"
+                  class="demographics-chart-body"
+                  aria-live="polite"
+                >
+                  <p class="demographics-pie-empty">No selection yet.</p>
+                </div>
+              </div>
+              <div
+                class="demographics-chart-card demographics-chart-card--sandbox-lunch"
+              >
+                <h3 class="demographics-chart-title">
+                  Free and Reduced Lunch<button
+                    type="button"
+                    class="info-tip"
+                    title="The share of students at this school who qualify for free or reduced-price meals — a common indicator of family income in the school community."
+                    aria-label="More info: Free and Reduced Lunch"
+                  >?</button>
+                </h3>
+                <div
+                  id="sandbox-demographics-lunch"
+                  class="demographics-chart-body"
+                  aria-live="polite"
+                >
+                  <p class="demographics-pie-empty">No selection yet.</p>
+                </div>
+                <p class="sandbox-demographics-note">
+                  Homeschool students are excluded from demographic charts.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section class="sandbox-summary-section" aria-labelledby="sandbox-summary-heading">
+            <h2 class="enrollment-chart-heading" id="sandbox-summary-heading">
+              Summary across all boundaries<button
+                type="button"
+                class="info-tip"
+                title="Compares enrollment, seat capacity, and how full each boundary is. Seats (factored capacity) come from the base school you pick for each boundary (blank if you do not pick one). Utilization is the number of students in the boundary divided by the number of seats."
+                aria-label="More info: Summary across all boundaries"
+              >?</button>
+            </h2>
+            <div id="sandbox-summary-table-wrap" class="sandbox-summary-table-wrap" aria-live="polite">
+              <p class="sandbox-placeholder">No boundaries yet. Add a boundary above and start drawing on the map.</p>
+            </div>
+          </section>
+          </div>
+        </div>
+
+        <div
+          id="page-feedback"
+          class="sidebar-page-panel sidebar-page-panel--feedback"
+          role="tabpanel"
+          aria-labelledby="sidebar-brand-main sidebar-view-title"
+          hidden
+        >
+          <section class="feedback-panel" aria-labelledby="feedback-panel-heading">
+            <h2 class="feedback-panel__heading" id="feedback-panel-heading">
+              Share your Feedback
+            </h2>
+            <p class="feedback-panel__intro">
+              Share what you learned from the dashboard and what priorities should inform future school and facility planning decisions. The survey contains twenty optional questions and is expected to take 5 to 10 minutes to complete. If you would prefer to view and complete the same survey in a new tab or window, or to use your browser's translation tools, click the orange button below.
+            </p>
+            <a
+              class="feedback-open-external-btn"
+              href="https://docs.google.com/forms/d/e/1FAIpQLSczqbsV7tOwe8UVmXN50WWDmG-xpwE8g59dSCoKxprns9IUyA/viewform"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Open survey in a new tab
+              <span class="feedback-open-external-btn__icon" aria-hidden="true">&#8599;</span>
+            </a>
+            <div class="feedback-google-embed-wrap">
+              <iframe
+                class="feedback-google-embed"
+                src="https://docs.google.com/forms/d/e/1FAIpQLSczqbsV7tOwe8UVmXN50WWDmG-xpwE8g59dSCoKxprns9IUyA/viewform?embedded=true"
+                title="Share your feedback (Google Form)"
+                loading="lazy"
+                height="7000"
+                frameborder="0"
+                marginheight="0"
+                marginwidth="0"
+              >Loading&#8230;</iframe>
+            </div>
+            <!--
+              Legacy custom feedback form preserved inside a <template> so it can be
+              restored quickly if we want to revert from the Google Form. Contents of
+              a <template> element are not in the live DOM, so getElementById from
+              app.js will not find these elements and the related feedback JS will
+              null-check and safely no-op.
+            -->
+            <template id="feedback-legacy-form-archive">
+            <form id="feedback-form" class="feedback-form" novalidate>
+              <fieldset class="feedback-form__group feedback-form__group--contact">
+                <legend class="feedback-form__legend">
+                  Name and E-Mail Address (Optional)
+                </legend>
+                <p class="feedback-form__hint feedback-form__hint--block">
+                  Optional. We will only use your name and email to add you to an
+                  email list for project updates, or if the project team needs to
+                  follow up on your responses for clarity.
+                </p>
+                <div class="feedback-form__contact-row">
+                  <div class="feedback-form__field">
+                    <label class="feedback-form__label" for="feedback-name">Name</label>
+                    <input
+                      type="text"
+                      id="feedback-name"
+                      class="feedback-form__input"
+                      name="contact_name"
+                      autocomplete="name"
+                    />
+                  </div>
+                  <div class="feedback-form__field">
+                    <label class="feedback-form__label" for="feedback-email"
+                      >E-mail address</label
+                    >
+                    <input
+                      type="email"
+                      id="feedback-email"
+                      class="feedback-form__input"
+                      name="contact_email"
+                      autocomplete="email"
+                      inputmode="email"
+                    />
+                  </div>
+                </div>
+              </fieldset>
+
+              <fieldset class="feedback-form__group feedback-form__group--role">
+                <legend class="feedback-form__legend" id="feedback-role-legend">
+                  What best describes your role in this conversation? Select all that apply.
+                </legend>
+                <div
+                  class="feedback-form__role-grid"
+                  role="group"
+                  aria-labelledby="feedback-role-legend"
+                >
+                  <label class="feedback-form__choice">
+                    <input type="checkbox" name="feedback_role" value="parent" />
+                    Parent
+                  </label>
+                  <label class="feedback-form__choice">
+                    <input type="checkbox" name="feedback_role" value="educator" />
+                    Educator
+                  </label>
+                  <label class="feedback-form__choice">
+                    <input type="checkbox" name="feedback_role" value="community_member" />
+                    Community member
+                  </label>
+                  <label class="feedback-form__choice">
+                    <input type="checkbox" name="feedback_role" value="administrator" />
+                    Administrator
+                  </label>
+                  <label class="feedback-form__choice">
+                    <input type="checkbox" name="feedback_role" value="student" />
+                    Student
+                  </label>
+                  <label class="feedback-form__choice">
+                    <input type="checkbox" name="feedback_role" value="other" />
+                    Other
+                  </label>
+                </div>
+              </fieldset>
+
+              <div class="feedback-form__group feedback-school-communities-field">
+                <label
+                  class="feedback-form__label"
+                  id="feedback-school-communities-label"
+                  for="feedback-school-combobox-trigger"
+                >
+                  Which school communities do you belong to? Select all which apply.
+                </label>
+                <div class="feedback-school-combobox" id="feedback-school-combobox">
+                  <button
+                    type="button"
+                    id="feedback-school-combobox-trigger"
+                    class="feedback-school-combobox__trigger"
+                    aria-haspopup="listbox"
+                    aria-expanded="false"
+                    aria-controls="feedback-school-combobox-list"
+                    aria-labelledby="feedback-school-communities-label"
+                    disabled
+                  >
+                    <span class="feedback-school-combobox__trigger-text"
+                      >Loading schools<span class="loading-ellipsis"></span
+                    ></span>
+                    <span
+                      class="feedback-school-combobox__chevron"
+                      aria-hidden="true"
+                    ></span>
+                  </button>
+                  <div
+                    id="feedback-school-combobox-list"
+                    class="feedback-school-combobox__list"
+                    role="listbox"
+                    aria-labelledby="feedback-school-communities-label"
+                    hidden
+                  ></div>
+                  <div
+                    id="feedback-school-communities-chips"
+                    class="feedback-school-combobox__chips"
+                    aria-live="polite"
+                  ></div>
+                  <select
+                    id="feedback-school-communities"
+                    class="visually-hidden"
+                    name="school_communities"
+                    multiple
+                    tabindex="-1"
+                    aria-hidden="true"
+                  ></select>
+                </div>
+              </div>
+
+
+              <fieldset class="feedback-form__group feedback-form__group--k8-excitement">
+                <legend class="feedback-form__legend" id="feedback-k8-excitement-legend">
+                  On a scale of 1 to 10, how excited are you about the K-8 model?
+                </legend>
+                <div
+                  class="feedback-scale"
+                  role="radiogroup"
+                  aria-labelledby="feedback-k8-excitement-legend"
+                >
+                  <div class="feedback-scale__track">
+                    <span class="feedback-scale__end-label">1 — Not at all</span>
+                    <div class="feedback-scale__options">
+                      <label class="feedback-scale__option">
+                        <input type="radio" name="k8_excitement" value="1" />
+                        <span class="feedback-scale__value">1</span>
+                      </label>
+                    <label class="feedback-scale__option">
+                      <input type="radio" name="k8_excitement" value="2" />
+                      <span class="feedback-scale__value">2</span>
+                    </label>
+                    <label class="feedback-scale__option">
+                      <input type="radio" name="k8_excitement" value="3" />
+                      <span class="feedback-scale__value">3</span>
+                    </label>
+                    <label class="feedback-scale__option">
+                      <input type="radio" name="k8_excitement" value="4" />
+                      <span class="feedback-scale__value">4</span>
+                    </label>
+                    <label class="feedback-scale__option">
+                      <input type="radio" name="k8_excitement" value="5" />
+                      <span class="feedback-scale__value">5</span>
+                    </label>
+                    <label class="feedback-scale__option">
+                      <input type="radio" name="k8_excitement" value="6" />
+                      <span class="feedback-scale__value">6</span>
+                    </label>
+                    <label class="feedback-scale__option">
+                      <input type="radio" name="k8_excitement" value="7" />
+                      <span class="feedback-scale__value">7</span>
+                    </label>
+                    <label class="feedback-scale__option">
+                      <input type="radio" name="k8_excitement" value="8" />
+                      <span class="feedback-scale__value">8</span>
+                    </label>
+                    <label class="feedback-scale__option">
+                      <input type="radio" name="k8_excitement" value="9" />
+                      <span class="feedback-scale__value">9</span>
+                    </label>
+                      <label class="feedback-scale__option">
+                        <input type="radio" name="k8_excitement" value="10" />
+                        <span class="feedback-scale__value">10</span>
+                      </label>
+                    </div>
+                    <span class="feedback-scale__end-label feedback-scale__end-label--end"
+                      >10 — Extremely</span
+                    >
+                  </div>
+                </div>
+              </fieldset>
+
+              <fieldset class="feedback-form__group feedback-form__group--k8-factors">
+                <legend class="feedback-form__legend" id="feedback-k8-factors-legend">
+                  What factors are most important to you when evaluating the K-8 model?
+                  Select and rank your top five.
+                </legend>
+                <p class="feedback-form__hint feedback-form__hint--block">
+                  Choose up to five factors below. Your selections appear in ranked order;
+                  use the arrows to reorder or remove a factor to choose a different one.
+                </p>
+                <div
+                  id="feedback-k8-factors-ranked"
+                  class="feedback-k8-factors__ranked"
+                  aria-live="polite"
+                ></div>
+                <p class="feedback-k8-factors__pool-label">Available factors</p>
+                <div
+                  id="feedback-k8-factors-pool"
+                  class="feedback-k8-factors__pool"
+                  role="group"
+                  aria-labelledby="feedback-k8-factors-legend"
+                ></div>
+                <input
+                  type="hidden"
+                  id="feedback-k8-factor-ranks"
+                  name="k8_factor_ranks"
+                  value=""
+                />
+              </fieldset>
+
+              <fieldset class="feedback-form__group feedback-form__group--demographics">
+                <legend class="feedback-form__legend">Demographics (optional)</legend>
+                <div class="feedback-form__demographics-row">
+                  <div class="feedback-form__field">
+                    <label class="feedback-form__label" for="feedback-gender">Gender</label>
+                    <select id="feedback-gender" class="feedback-form__select" name="gender">
+                      <option value="">Prefer not to answer</option>
+                      <option value="female">Female</option>
+                      <option value="male">Male</option>
+                      <option value="another">Another gender identity</option>
+                    </select>
+                  </div>
+                  <div class="feedback-form__field">
+                    <label class="feedback-form__label" for="feedback-race">
+                      Race / ethnicity
+                    </label>
+                    <select id="feedback-race" class="feedback-form__select" name="race">
+                      <option value="">Prefer not to answer</option>
+                      <option value="hawaiian_native_pacific_islander">
+                        Hawaiian Native / Pacific Islander
+                      </option>
+                      <option value="asian">Asian</option>
+                      <option value="black_non_hispanic">Black, Non-Hispanic</option>
+                      <option value="hispanic">Hispanic</option>
+                      <option value="amer_indian_alaskan_native">
+                        Amer. Indian or Alaskan Native
+                      </option>
+                      <option value="multi_racial">Multi-Racial</option>
+                      <option value="white_non_hispanic">White, Non-Hispanic</option>
+                    </select>
+                  </div>
+                  <div class="feedback-form__field">
+                    <label class="feedback-form__label" for="feedback-income">
+                      Household income
+                    </label>
+                    <select id="feedback-income" class="feedback-form__select" name="income">
+                      <option value="">Prefer not to answer</option>
+                      <option value="under_25k">Under $25,000</option>
+                      <option value="25k_49k">$25,000 – $49,999</option>
+                      <option value="50k_74k">$50,000 – $74,999</option>
+                      <option value="75k_99k">$75,000 – $99,999</option>
+                      <option value="100k_149k">$100,000 – $149,999</option>
+                      <option value="150k_plus">$150,000 or more</option>
+                    </select>
+                  </div>
+                </div>
+              </fieldset>
+
+              <div class="feedback-form__group feedback-form__group--paired">
+                <fieldset class="feedback-form__subsection feedback-form__group--k8-view-change">
+                  <legend class="feedback-form__legend" id="feedback-k8-view-change-legend">
+                    After exploring the dashboard, how has your view of the K-8 model changed?
+                  </legend>
+                <div role="radiogroup" aria-labelledby="feedback-k8-view-change-legend">
+                  <label class="feedback-form__choice">
+                    <input
+                      type="radio"
+                      name="k8_view_change"
+                      value="more_supportive"
+                    />
+                    More supportive
+                  </label>
+                  <label class="feedback-form__choice">
+                    <input type="radio" name="k8_view_change" value="no_change" />
+                    No change
+                  </label>
+                  <label class="feedback-form__choice">
+                    <input type="radio" name="k8_view_change" value="more_concerned" />
+                    More concerned
+                  </label>
+                  <label class="feedback-form__choice">
+                    <input type="radio" name="k8_view_change" value="undecided" />
+                    Still undecided
+                  </label>
+                </div>
+                </fieldset>
+                <fieldset class="feedback-form__subsection">
+                  <legend class="feedback-form__legend">
+                    How useful was this dashboard for understanding K–8 enrollment patterns?
+                  </legend>
+                  <label class="feedback-form__choice">
+                    <input type="radio" name="feedback-usefulness" value="very" />
+                    Very useful
+                  </label>
+                  <label class="feedback-form__choice">
+                    <input type="radio" name="feedback-usefulness" value="somewhat" />
+                    Somewhat useful
+                  </label>
+                  <label class="feedback-form__choice">
+                    <input type="radio" name="feedback-usefulness" value="not" />
+                    Not very useful
+                  </label>
+                </fieldset>
+              </div>
+              <div class="feedback-form__group">
+                <label class="feedback-form__label" for="feedback-future-clarity">
+                  What would you like the district to explain or show more clearly in a
+                  future version of this tool?
+                </label>
+                <textarea
+                  id="feedback-future-clarity"
+                  class="feedback-form__textarea"
+                  name="future_clarity"
+                  rows="3"
+                  placeholder="Topics, data, maps, or explanations you would find helpful…"
+                ></textarea>
+              </div>
+              <div class="feedback-form__group feedback-form__group--flush-top">
+                <label class="feedback-form__label" for="feedback-comments">
+                  Please share any additional comments you have for the project team.
+                </label>
+                <textarea
+                  id="feedback-comments"
+                  class="feedback-form__textarea"
+                  name="comments"
+                  rows="4"
+                  placeholder="Share any other thoughts…"
+                ></textarea>
+              </div>
+              <button type="submit" class="feedback-form__submit" id="feedback-submit-btn">
+                Submit feedback
+              </button>
+            </form>
+            <div
+              id="feedback-thanks"
+              class="feedback-thanks"
+              role="status"
+              aria-live="polite"
+              hidden
+            >
+              <p class="feedback-thanks__message">Thank you for sharing your feedback.</p>
+            </div>
+            </template>
+          </section>
+        </div>
+      </aside>
+
+      <div
+        class="dashboard-resizer"
+        id="dashboard-resizer"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Drag to resize panels"
+        tabindex="0"
+      ></div>
+
+      <div class="dashboard-map-wrap">
+        <header class="toolbar toolbar--collapsed" id="toolbar">
+          <button
+            type="button"
+            class="toolbar-toggle"
+            id="toolbar-toggle"
+            aria-expanded="false"
+            aria-controls="toolbar-panel"
+          >
+            <span class="toolbar-toggle-label">Map layers</span>
+            <span class="toolbar-toggle-chevron" aria-hidden="true"></span>
+          </button>
+          <div class="toolbar-panel" id="toolbar-panel">
+            <div class="layer-sections">
+              <section class="layer-section" aria-labelledby="heading-boundaries">
+                <h2 class="layer-section-title" id="heading-boundaries">
+                  Assignment Boundaries<button
+                    type="button"
+                    class="info-tip"
+                    title="The geographic area each school is responsible for. Students who live inside the boundary are zoned to that school."
+                    aria-label="More info: Assignment Boundaries"
+                  >?</button>
+                </h2>
+                <div class="toggles" id="boundary-toggles"></div>
+              </section>
+              <section class="layer-section" aria-labelledby="heading-schools">
+                <h2 class="layer-section-title" id="heading-schools">
+                  School Locations<button
+                    type="button"
+                    class="info-tip"
+                    title="The physical address (point on the map) of each traditional public school in the district."
+                    aria-label="More info: School Locations"
+                  >?</button>
+                </h2>
+                <div class="toggles" id="school-toggles"></div>
+              </section>
+              <section class="layer-section" aria-labelledby="heading-school-parcels">
+                <h2 class="layer-section-title" id="heading-school-parcels">
+                  School Parcels<button
+                    type="button"
+                    class="info-tip"
+                    title="The actual land each school sits on — the property lines around the campus, including buildings, fields, and parking."
+                    aria-label="More info: School Parcels"
+                  >?</button>
+                </h2>
+                <div class="toggles" id="school-parcel-toggles"></div>
+              </section>
+              <section class="layer-section" aria-labelledby="heading-non-traditional-schools">
+                <h2 class="layer-section-title" id="heading-non-traditional-schools">
+                  Non-Traditional School Locations<button
+                    type="button"
+                    class="info-tip"
+                    title="Charter and private schools in the area. Turn on 'Vary Size by Enrollment' to make each dot bigger or smaller based on how many students attend that school."
+                    aria-label="More info: Non-Traditional School Locations"
+                  >?</button>
+                </h2>
+                <div class="nontraditional-school-locations-stack">
+                  <div class="charter-private-school-toggles-row">
+                    <div class="toggles" id="charter-school-toggles"></div>
+                    <div class="toggles" id="private-school-toggles"></div>
+                  </div>
+                  <div
+                    id="nontraditional-vary-enrollment-size-row"
+                    class="toggle-nested-row toggle-nested-row--vary-enrollment"
+                  >
+                    <label
+                      class="student-hex-tooltip-label"
+                      for="toggle-nontraditional-vary-enrollment-size"
+                    >
+                      <input
+                        type="checkbox"
+                        id="toggle-nontraditional-vary-enrollment-size"
+                        autocomplete="off"
+                      />
+                      <span>Vary Size by Enrollment</span>
+                    </label>
+                  </div>
+                </div>
+              </section>
+              <section class="layer-section" aria-labelledby="heading-travel-sheds">
+                <h2 class="layer-section-title" id="heading-travel-sheds">
+                  Travel sheds<button
+                    type="button"
+                    class="info-tip"
+                    title="The area students can reach from a school within a chosen driving distance. Use the slider to set the maximum distance and see how far the shed extends."
+                    aria-label="More info: Travel sheds"
+                  >?</button>
+                </h2>
+                <div class="travel-shed-menu-stack">
+                  <div class="toggles" id="travel-shed-toggles"></div>
+                  <div
+                    class="travel-shed-max-miles-row"
+                    id="travel-shed-max-miles-row"
+                    hidden
+                  >
+                    <div class="travel-shed-max-miles-label" id="travel-shed-max-miles-label">
+                      Show network travel sheds up to
+                    </div>
+                    <div class="travel-shed-max-miles-control">
+                      <input
+                        type="range"
+                        id="travel-shed-max-miles"
+                        min="1"
+                        max="10"
+                        value="10"
+                        step="1"
+                        aria-label="Show network travel sheds up to a maximum distance, up to 10 miles"
+                        aria-valuemin="1"
+                        aria-valuemax="10"
+                        aria-valuenow="10"
+                        aria-valuetext="10 miles"
+                      />
+                      <output
+                        class="travel-shed-max-miles-output"
+                        id="travel-shed-max-miles-output"
+                        for="travel-shed-max-miles"
+                        >10 mi</output>
+                    </div>
+                  </div>
+                </div>
+              </section>
+              <section class="layer-section" aria-labelledby="heading-student-hex">
+                <h2 class="layer-section-title" id="heading-student-hex">
+                  <span id="student-hex-heading-text">Student Residence Density</span><button
+                    type="button"
+                    class="info-tip"
+                    title="Where students live across the district. Darker areas have more students living there. Each small hexagon represents a neighborhood-sized area; counts are grouped this way to protect student privacy."
+                    aria-label="More info: Student Residence Density"
+                  >?</button>
+                </h2>
+                <div class="student-hex-menu-stack">
+                  <div class="toggles" id="student-hex-toggles"></div>
+                  <div
+                    class="student-hex-residence-modes"
+                    id="student-hex-residence-modes"
+                    role="group"
+                    aria-label="Student residence cohort"
+                  >
+                    <label class="student-hex-tooltip-label" for="toggle-student-hex-attending">
+                      <input type="checkbox" id="toggle-student-hex-attending" checked />
+                      <span id="student-hex-attending-label">Attending selected school</span>
+                    </label>
+                    <label class="student-hex-tooltip-label" for="toggle-student-hex-zoned">
+                      <input type="checkbox" id="toggle-student-hex-zoned" />
+                      <span id="student-hex-zoned-label">Zoned to selected school</span>
+                    </label>
+                  </div>
+                  <div
+                    class="toggles"
+                    id="charter-student-hex-toggles"
+                    aria-label="Charter student residence map"
+                  ></div>
+                  <div
+                    class="toggles"
+                    id="homeschool-student-hex-toggles"
+                    aria-label="Homeschool student residence map"
+                  ></div>
+                  <div
+                    class="student-hex-tooltip-row"
+                    id="student-hex-tooltip-row"
+                    hidden
+                  >
+                    <label
+                      class="student-hex-tooltip-label"
+                      for="toggle-student-hex-density-tooltip"
+                    >
+                      <input
+                        type="checkbox"
+                        id="toggle-student-hex-density-tooltip"
+                        checked
+                      />
+                      <span>Show density tooltip</span>
+                    </label>
+                  </div>
+                </div>
+              </section>
+              <section class="layer-section" aria-labelledby="heading-school-board-districts">
+                <h2 class="layer-section-title" id="heading-school-board-districts">
+                  School Board Districts<button
+                    type="button"
+                    class="info-tip"
+                    title="The five geographic areas of the county, each represented by one elected School Board member."
+                    aria-label="More info: School Board Districts"
+                  >?</button>
+                </h2>
+                <div class="toggles" id="school-board-district-toggles"></div>
+              </section>
+              <section class="layer-section" aria-labelledby="heading-municipal-boundaries">
+                <h2 class="layer-section-title" id="heading-municipal-boundaries">
+                  Municipal Boundaries<button
+                    type="button"
+                    class="info-tip"
+                    title="City and town limits within the county, for geographic reference."
+                    aria-label="More info: Municipal Boundaries"
+                  >?</button>
+                </h2>
+                <div class="toggles" id="municipal-boundary-toggles"></div>
+              </section>
+            </div>
+            <div
+              class="basemap-row"
+              role="group"
+              aria-label="Basemap"
+              id="basemap-toggle"
+            >
+              <span class="basemap-label">Basemap</span>
+              <div class="basemap-segmented basemap-segmented--triple" role="group">
+                <button type="button" data-basemap="light" class="is-active" aria-pressed="true">
+                  Light
+                </button>
+                <button type="button" data-basemap="streets" aria-pressed="false">
+                  Streets
+                </button>
+                <button type="button" data-basemap="satellite" aria-pressed="false">
+                  Satellite
+                </button>
+              </div>
+            </div>
+          </div>
+        </header>
+        <div id="map" role="application" aria-label="Interactive map"></div>
+        <div
+          id="map-loading-overlay"
+          class="map-loading-overlay"
+          role="status"
+          aria-live="polite"
+        >
+          <div class="map-loading-overlay__card">
+            <p class="map-loading-overlay__title">
+              Loading school data<span class="loading-ellipsis" aria-hidden="true"></span>
+            </p>
+            <p class="map-loading-overlay__hint">
+              Thank you for your patience &mdash; this can take a few moments on
+              your first visit. We are preparing every school, attendance
+              boundary, and student residence layer.
+            </p>
+          </div>
+        </div>
+        <aside
+          class="map-density-legend"
+          id="map-density-legend"
+          hidden
+          aria-label="Residence density color scale"
+        >
+          <div class="map-density-legend__row" id="map-density-legend-student" hidden>
+            <div class="map-density-legend__title" id="map-density-legend-student-title">Student Residence Density</div>
+            <div
+              class="map-density-legend__bar map-density-legend__bar--student"
+              role="img"
+              id="map-density-legend-student-scale"
+              aria-label="Color scale: cyan through blue and purple to yellow; numbers are neighborhood-mean students per square mile in view"
+            ></div>
+            <div class="map-density-legend__axis">
+              <span class="map-density-legend__val" id="map-density-legend-student-min">—</span>
+              <span class="map-density-legend__val" id="map-density-legend-student-max">—</span>
+            </div>
+            <p class="map-density-legend__val-note">
+              Neighborhood-mean students per square mile (min - max) in view
+            </p>
+          </div>
+          <div class="map-density-legend__row" id="map-density-legend-charter" hidden>
+            <div class="map-density-legend__title">Charter student residences</div>
+            <div
+              class="map-density-legend__bar map-density-legend__bar--charter"
+              role="img"
+              id="map-density-legend-charter-scale"
+              aria-label="Color scale: light to vivid magenta and pink; numbers are neighborhood-mean charter students per square mile in view"
+            ></div>
+            <div class="map-density-legend__axis">
+              <span class="map-density-legend__val" id="map-density-legend-charter-min">—</span>
+              <span class="map-density-legend__val" id="map-density-legend-charter-max">—</span>
+            </div>
+            <p class="map-density-legend__val-note">
+              Neighborhood-mean students per square mile (min - max) in view
+            </p>
+          </div>
+          <div class="map-density-legend__row" id="map-density-legend-homeschool" hidden>
+            <div class="map-density-legend__title">Homeschool student residences</div>
+            <div
+              class="map-density-legend__bar map-density-legend__bar--homeschool"
+              role="img"
+              id="map-density-legend-homeschool-scale"
+              aria-label="Color scale: light to deep red; numbers are neighborhood-mean homeschool students per square mile in view"
+            ></div>
+            <div class="map-density-legend__axis">
+              <span class="map-density-legend__val" id="map-density-legend-homeschool-min">—</span>
+              <span class="map-density-legend__val" id="map-density-legend-homeschool-max">—</span>
+            </div>
+            <p class="map-density-legend__val-note">
+              Neighborhood-mean students per square mile (min - max) in view
+            </p>
+          </div>
+        </aside>
+      </div>
+    </div>
+    <script src="https://api.mapbox.com/mapbox-gl-js/v3.8.0/mapbox-gl.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@7.2.0/turf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+    <script src="https://unpkg.com/d3-sankey@0.12.3/dist/d3-sankey.min.js"></script>
+    <script>
+      (function () {
+        var AUTH_KEY = "brevardK8DashAuth";
+        var PENDING_NAV_KEY = "brevardK8PendingNav";
+        var PASSWORD = "BrevardK8";
+        var gate = document.getElementById("login-gate");
+        var dash = document.getElementById("dashboard");
+        var form = document.getElementById("login-form");
+        var err = document.getElementById("login-error");
+        var input = document.getElementById("login-password");
+        var viewTutorialBtn = document.getElementById("view-tutorial-btn");
+        var backToDashboardBtn = document.getElementById(
+          "welcome-back-to-dashboard-btn"
+        );
+
+        function loadApp() {
+          if (window.__dashboardAppLoaded) return;
+          window.__dashboardAppLoaded = true;
+          function appendAppScript() {
+            var s = document.createElement("script");
+            s.src = "app.js";
+            document.body.appendChild(s);
+          }
+          var config = document.createElement("script");
+          config.src = "config.local.js";
+          config.onerror = appendAppScript;
+          config.onload = appendAppScript;
+          document.body.appendChild(config);
+        }
+
+        function enterDashboard() {
+          sessionStorage.setItem(AUTH_KEY, "1");
+          if (gate) {
+            gate.classList.remove("login-gate--review");
+            gate.hidden = true;
+          }
+          if (dash) dash.hidden = false;
+          document.body.classList.add("dashboard-unlocked");
+          loadApp();
+        }
+
+        function showWelcomeReview() {
+          if (!gate || !dash) return;
+          gate.classList.add("login-gate--review");
+          gate.hidden = false;
+          dash.hidden = true;
+          document.body.classList.remove("dashboard-unlocked");
+          try {
+            window.scrollTo({ top: 0, behavior: "auto" });
+          } catch (e) {
+            window.scrollTo(0, 0);
+          }
+        }
+
+        function exitWelcomeReview() {
+          if (!gate || !dash) return;
+          gate.classList.remove("login-gate--review");
+          gate.hidden = true;
+          dash.hidden = false;
+          document.body.classList.add("dashboard-unlocked");
+          // Re-show may change the map container size; nudge Mapbox (and any
+          // other resize-aware code) to relayout cleanly.
+          try {
+            window.dispatchEvent(new Event("resize"));
+          } catch (e) {
+            /* ignore */
+          }
+        }
+
+        if (form) {
+          form.addEventListener("submit", function (e) {
+            e.preventDefault();
+            if (sessionStorage.getItem(AUTH_KEY) === "1") {
+              // User is already authed and viewing the tutorial again;
+              // an Enter keypress should just take them back to the dashboard.
+              exitWelcomeReview();
+              return;
+            }
+            if (input && input.value === PASSWORD) {
+              if (err) err.hidden = true;
+              enterDashboard();
+            } else if (err) {
+              err.hidden = false;
+            }
+          });
+        }
+
+        if (viewTutorialBtn) {
+          viewTutorialBtn.addEventListener("click", showWelcomeReview);
+        }
+        if (backToDashboardBtn) {
+          backToDashboardBtn.addEventListener("click", exitWelcomeReview);
+        }
+
+        /* Landing-page "explore" links. Stash the requested view so the
+           dashboard opens straight to it. If the user is already authed
+           (e.g. reviewing the welcome page) we go right in; otherwise we
+           nudge them to the password field and app.js applies the pending
+           nav once they enter. */
+        function requestDashboardView(page, subtab) {
+          if (!page) return;
+          try {
+            sessionStorage.setItem(
+              PENDING_NAV_KEY,
+              JSON.stringify({ page: page, subtab: subtab || null })
+            );
+          } catch (e) {
+            /* ignore */
+          }
+          if (sessionStorage.getItem(AUTH_KEY) === "1") {
+            if (gate && !gate.hidden) {
+              exitWelcomeReview();
+            } else if (dash && dash.hidden) {
+              enterDashboard();
+            }
+            loadApp();
+            if (
+              window.__dashboardAppLoaded &&
+              typeof window.__applyPendingDashboardNav === "function"
+            ) {
+              setTimeout(function () {
+                try {
+                  window.__applyPendingDashboardNav();
+                } catch (e) {
+                  /* ignore */
+                }
+              }, 0);
+            }
+          } else {
+            if (input) {
+              try {
+                input.focus();
+              } catch (e) {
+                /* ignore */
+              }
+            }
+            var authCard = document.querySelector(".welcome-section--auth");
+            if (authCard && authCard.scrollIntoView) {
+              try {
+                authCard.scrollIntoView({ behavior: "smooth", block: "center" });
+              } catch (e) {
+                /* ignore */
+              }
+            }
+          }
+        }
+
+        var exploreLinks = document.querySelectorAll(
+          ".welcome-explore__link[data-nav-page]"
+        );
+        for (var ei = 0; ei < exploreLinks.length; ei++) {
+          (function (btn) {
+            btn.addEventListener("click", function () {
+              requestDashboardView(
+                btn.getAttribute("data-nav-page"),
+                btn.getAttribute("data-nav-subtab")
+              );
+            });
+          })(exploreLinks[ei]);
+        }
+
+        if (sessionStorage.getItem(AUTH_KEY) === "1") {
+          if (gate) gate.hidden = true;
+          if (dash) dash.hidden = false;
+          document.body.classList.add("dashboard-unlocked");
+          loadApp();
+        }
+      })();
+    </script>
+
+    <!--
+      Save-and-share modal dialog. Lives at body level so it can overlay any
+      sub-tab. Opened/closed by app.js via the #scenario-save-share-btn click
+      handler. The modal supports both Scenario Planning and Boundary Sandbox
+      sub-tabs; the heading and preview content are populated dynamically.
+    -->
+    <div
+      id="share-scenario-overlay"
+      class="share-scenario-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="share-scenario-title"
+      hidden
+    >
+      <div class="share-scenario-card" role="document">
+        <header class="share-scenario-card-head">
+          <h2 class="share-scenario-card-title" id="share-scenario-title">
+            Save and Share Scenario
+          </h2>
+          <button
+            type="button"
+            class="share-scenario-close-btn"
+            id="share-scenario-close-btn"
+            aria-label="Close share dialog"
+          >
+            &times;
+          </button>
+        </header>
+
+        <div class="share-scenario-card-body">
+          <p class="share-scenario-helper" id="share-scenario-helper">
+            Email a summary of your current scenario. Your default email
+            client will open with the message pre-filled — you click Send.
+          </p>
+
+          <label class="share-scenario-field">
+            <span class="share-scenario-field-label">Scenario title</span>
+            <input
+              type="text"
+              id="share-scenario-title-input"
+              class="share-scenario-input"
+              maxlength="120"
+              placeholder="e.g., Mims ES + Apollo ES consolidation"
+              autocomplete="off"
+            />
+          </label>
+
+          <label class="share-scenario-field">
+            <span class="share-scenario-field-label">Recipient email</span>
+            <input
+              type="email"
+              id="share-scenario-recipient-input"
+              class="share-scenario-input"
+              placeholder="your.name@example.com"
+              autocomplete="email"
+            />
+            <span class="share-scenario-field-hint">
+              Leave blank if you only want to send a copy to the district.
+            </span>
+          </label>
+
+          <label class="share-scenario-field share-scenario-field--checkbox">
+            <input
+              type="checkbox"
+              id="share-scenario-district-input"
+              class="share-scenario-checkbox-input"
+            />
+            <span>
+              Also Share with the Project Team
+              <span
+                class="share-scenario-district-email"
+                id="share-scenario-district-email"
+              ></span>
+            </span>
+          </label>
+
+          <label class="share-scenario-field">
+            <span class="share-scenario-field-label">Additional comments</span>
+            <textarea
+              id="share-scenario-comments-input"
+              class="share-scenario-textarea"
+              rows="4"
+              maxlength="1500"
+              placeholder="Anything you want the recipient to know about this scenario."
+            ></textarea>
+          </label>
+
+          <details class="share-scenario-preview" id="share-scenario-preview">
+            <summary>Preview email body</summary>
+            <pre
+              class="share-scenario-preview-pre"
+              id="share-scenario-preview-pre"
+            ></pre>
+          </details>
+
+          <p
+            class="share-scenario-status"
+            id="share-scenario-status"
+            role="status"
+            aria-live="polite"
+          ></p>
+        </div>
+
+        <footer class="share-scenario-card-foot">
+          <button
+            type="button"
+            class="share-scenario-secondary-btn"
+            id="share-scenario-pdf-btn"
+            title="Download a PDF summary of this scenario to attach to your email"
+          >
+            Download PDF
+          </button>
+          <span class="share-scenario-foot-spacer"></span>
+          <button
+            type="button"
+            class="share-scenario-cancel-btn"
+            id="share-scenario-cancel-btn"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="share-scenario-primary-btn"
+            id="share-scenario-send-btn"
+            title="Open your email client with the summary pre-filled"
+          >
+            Open in Email
+          </button>
+        </footer>
+      </div>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,26 @@
+{
+    "schoolYear":  "2025-26",
+    "notes":  [
+                  "Computed by scripts/export_meadowlane_capture_from_xlsx.ps1 from row-level student data.",
+                  "2041: K-2 attending / K-2 zoned to 2041 (ELEM_MSID). PK excluded from K-2 bucket.",
+                  "2031: grades 3-6 attending 2031 / grades 3-6 with ELEM_MSID 2041. Denominator does not use 2031.",
+                  "Source: SY2025-26 student workbook (local path not stored in repo). Rows scanned: 74266 ; grade column: 2."
+              ],
+    "2041":  {
+                 "numerator":  480,
+                 "denominator":  616,
+                 "fallback_capture_rate_decimal":  null,
+                 "description":  "K-2 attending Meadowlane Primary / K-2 zoned to Meadowlane Primary (2041)."
+             },
+    "2031":  {
+                 "numerator":  757,
+                 "denominator":  986,
+                 "denominator_zoned_elem_msid":  2041,
+                 "fallback_capture_rate_decimal":  null,
+                 "description":  "Grades 3-6 attending Meadowlane Intermediate / grades 3-6 zoned to Meadowlane Primary (2041)."
+             },
+    "zoning_audit":  {
+                         "student_count_with_zoned_msid_2031_in_any_column":  0,
+                         "comment":  "Counts all data rows where ELEM (col V), MID (W), or HIGH (Y) parses to MSID 2031. Expect 0."
+                     }
+}

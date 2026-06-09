@@ -1,0 +1,9 @@
+=== From-To capture import ===
+
+elementary: P:\0109260\Planning\WorkingFiles\00_To Be Sorted\FromToAnalysis\251010FromToElem.xlsx
+middle: P:\0109260\Planning\WorkingFiles\00_To Be Sorted\FromToAnalysis\251010FromToMiddle.xlsx
+high: P:\0109260\Planning\WorkingFiles\00_To Be Sorted\FromToAnalysis\251010FromToHigh.xlsx
+
+MSIDs with From-To data: 79
+
+Warnings: (none)

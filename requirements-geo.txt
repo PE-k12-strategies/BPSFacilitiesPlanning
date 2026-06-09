@@ -1,0 +1,2 @@
+# Optional: pip install -r requirements-geo.txt
+geopandas>=0.14.0

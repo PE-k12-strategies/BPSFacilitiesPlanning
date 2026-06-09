@@ -1,0 +1,24 @@
+node_modules/
+dist/
+*.local
+.DS_Store
+
+# Sensitive or large local inputs
+data/raw/*.csv
+data/raw/*.shp
+data/raw/*.shx
+data/raw/*.dbf
+data/raw/*.prj
+data/raw/*.cpg
+data/raw/*.zip
+
+# Optional: do not commit processed outputs
+# data/processed/
+
+# GeoJSON pre-edit backups (can be very large; never commit)
+**/*.geojson.bak
+geo/*.bak
+
+# Full student-hex export (large); repo uses geo/StudentHexagons.bundle.json. Regenerate with:
+#   node scripts/slim-geojson-properties.cjs  then  node scripts/bundle-dedupe-student-hex.cjs
+geo/StudentHexagons.geojson

@@ -1,0 +1,2 @@
+// Copy to config.local.js (gitignored) and set your Mapbox public token.
+window.MAPBOX_ACCESS_TOKEN = "pk.your_mapbox_public_token_here";

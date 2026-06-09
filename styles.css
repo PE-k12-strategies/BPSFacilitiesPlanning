@@ -1,0 +1,6065 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  height: 100%;
+  overflow: hidden;
+}
+
+:root {
+  /* Sampled from assets/perkins-eastman.png */
+  --brand-pe-orange: #ff520d;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: #fff;
+  font-family: "Franklin Gothic Medium", "Franklin Gothic", "ITC Franklin Gothic",
+    "Libre Franklin", "Arial Narrow", sans-serif;
+  color: #1a1a1a;
+}
+
+/* Lock the document viewport: only inner panels scroll (sidebar), not the full page. */
+body {
+  overflow: hidden;
+}
+
+body.dashboard-unlocked {
+  height: 100%;
+  max-height: 100vh;
+  overflow: hidden;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.login-gate {
+  min-height: 100vh;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 20px;
+  background: #fff;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.login-gate__inner {
+  width: 100%;
+  max-width: 420px;
+  text-align: center;
+}
+
+.login-gate__title {
+  margin: 0 0 20px;
+  font-size: clamp(1.15rem, 3.5vw, 1.5rem);
+  font-weight: 700;
+  line-height: 1.25;
+  color: #111827;
+}
+
+.login-gate__title-line {
+  display: block;
+}
+
+.login-gate__title-line--product {
+  color: var(--brand-pe-orange);
+}
+
+.login-gate__hint {
+  margin: 0 0 24px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #6b7280;
+  line-height: 1.45;
+}
+
+.login-gate__form {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
+}
+
+.login-gate__input {
+  width: 100%;
+  padding: 12px 14px;
+  font: inherit;
+  font-size: 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  color: #111827;
+}
+
+.login-gate__input::placeholder {
+  color: #9ca3af;
+}
+
+.login-gate__input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+}
+
+.login-gate__error {
+  margin: 0;
+  font-size: 0.88rem;
+  color: #b91c1c;
+  text-align: center;
+}
+
+.login-gate__submit {
+  margin-top: 4px;
+  padding: 12px 20px;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #fff;
+  background: #2563eb;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.login-gate__submit:hover {
+  background: #1d4ed8;
+}
+
+.login-gate__submit:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.45);
+}
+
+/* ============================================================================
+   Welcome page (overrides + additions to the base .login-gate__* styles).
+   Activated by combining .login-gate--welcome on the root and
+   .login-gate__inner--welcome on the inner container. The wider inner
+   container lets us present multiple content sections plus the password form.
+   ============================================================================ */
+
+.login-gate--welcome {
+  padding: 48px 24px;
+  background: #fff;
+  align-items: flex-start;
+}
+
+.login-gate__inner--welcome {
+  max-width: 1160px;
+  text-align: left;
+}
+
+.welcome-header {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 28px;
+  text-align: left;
+}
+
+.welcome-header__logo {
+  display: block;
+  flex: 0 0 auto;
+  height: 84px;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+@media (max-width: 540px) {
+  .welcome-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .welcome-header__logo {
+    height: 64px;
+  }
+  /* Let the title (and, with it, the subtitle) wrap on narrow screens instead
+     of running off the edge — the desktop layout forces them onto one line.
+     Higher specificity than the base `.welcome-title { white-space: nowrap }`
+     rule (which is declared later in the file) so the wrap actually wins. */
+  .welcome-header__text .welcome-title,
+  .welcome-title {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .welcome-header__text .welcome-title__line--district,
+  .welcome-header__text .welcome-title__line--product {
+    white-space: normal;
+  }
+  .welcome-subtitle {
+    white-space: normal;
+  }
+}
+
+/* Two-column hero: descriptive copy on the left, video on the right.
+   The right column is intentionally a bit larger than the left so the video
+   walkthrough feels prominent. Collapses to a single column on narrow viewports. */
+.welcome-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+  gap: 36px;
+  align-items: start;
+  margin-bottom: 28px;
+}
+
+.welcome-hero__left,
+.welcome-hero__right {
+  min-width: 0;
+}
+
+.welcome-hero__left > p {
+  margin: 0 0 14px;
+}
+
+.welcome-hero__left > p:last-child {
+  margin-bottom: 0;
+}
+
+.welcome-body,
+.welcome-excitement {
+  font-family: "Franklin Gothic Book", "Libre Franklin", sans-serif;
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.55;
+  color: #1f2937;
+}
+
+.welcome-body strong,
+.welcome-excitement strong,
+.welcome-intro strong {
+  color: #0f172a;
+  font-weight: 700;
+}
+
+/* Orange callout treatment for the "share your feedback" paragraph —
+   matches the earlier survey-section styling so the feedback ask stands out
+   inside the otherwise-prose left column. */
+.welcome-excitement--callout {
+  margin-top: 6px;
+  padding: 14px 16px;
+  background: #fff7ed;
+  border-left: 4px solid var(--brand-pe-orange);
+  border-radius: 6px;
+  color: #1f2937;
+}
+
+.welcome-excitement--callout strong {
+  color: #9a3412;
+  font-weight: 700;
+}
+
+.welcome-survey-link {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.welcome-survey-link:hover,
+.welcome-survey-link:focus-visible {
+  color: #c2410c;
+}
+
+.welcome-video-title {
+  margin-top: 0;
+}
+
+@media (max-width: 820px) {
+  .welcome-hero {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+}
+
+.welcome-title {
+  margin: 0 0 16px;
+  font-size: clamp(1.3rem, 2.8vw, 1.8rem);
+  font-weight: 700;
+  line-height: 1.2;
+  color: #111827;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.welcome-title__line--district {
+  display: inline;
+}
+
+.welcome-title__line--product {
+  display: inline;
+  color: var(--brand-pe-orange);
+}
+
+.welcome-header__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.welcome-header__text .welcome-title {
+  margin-bottom: 2px;
+}
+
+.welcome-subtitle {
+  margin: 0;
+  font-family: "Franklin Gothic Book", "Libre Franklin", sans-serif;
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.45;
+  color: #334155;
+  text-align: left;
+}
+
+.welcome-subtitle strong {
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.welcome-intro {
+  margin: 0;
+  font-family: "Franklin Gothic Book", "Libre Franklin", sans-serif;
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.55;
+  color: #1f2937;
+}
+
+.welcome-section {
+  margin: 0 0 28px;
+  padding: 0;
+}
+
+.welcome-section__title {
+  margin: 0 0 10px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: 0.01em;
+}
+
+.welcome-list {
+  margin: 0;
+  padding: 0 0 0 1.1rem;
+  list-style: disc;
+  color: #1f2937;
+  font-family: "Franklin Gothic Book", "Libre Franklin", sans-serif;
+  font-size: 0.95rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.welcome-list > li {
+  margin: 0 0 8px;
+}
+
+.welcome-list > li:last-child {
+  margin-bottom: 0;
+}
+
+.welcome-list strong {
+  color: #0f172a;
+  font-weight: 700;
+}
+
+/* Video tutorial slot: keeps a fixed 16:9 placeholder so swapping in a real
+   YouTube iframe later requires no layout changes. */
+.welcome-video-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #f1f5f9;
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.welcome-video-iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.welcome-video-placeholder {
+  text-align: center;
+  padding: 16px;
+  color: #475569;
+}
+
+.welcome-video-placeholder__title {
+  margin: 0 0 6px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #334155;
+}
+
+.welcome-video-placeholder__hint {
+  margin: 0;
+  font-family: "Franklin Gothic Book", "Libre Franklin", sans-serif;
+  font-size: 0.9rem;
+  font-weight: 500;
+  line-height: 1.45;
+  color: #64748b;
+}
+
+.welcome-video-link {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 8px 14px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #94a3b8;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  text-decoration: none;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* "Explore at your own pace" guide under the video walkthrough. A compact
+   illustrated list pointing users to each view, sized to match the right
+   column without overwhelming the page. */
+.welcome-explore {
+  margin-top: 20px;
+  padding: 16px 18px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.welcome-explore__title {
+  margin: 0 0 6px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.welcome-explore__intro {
+  margin: 0 0 14px;
+  font-family: "Franklin Gothic Book", "Libre Franklin", sans-serif;
+  font-size: 0.92rem;
+  font-weight: 500;
+  line-height: 1.5;
+  color: #475569;
+}
+
+.welcome-explore__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.welcome-explore__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.welcome-explore__icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #fed7aa;
+  color: var(--brand-pe-orange);
+}
+
+.welcome-explore__text {
+  font-family: "Franklin Gothic Book", "Libre Franklin", sans-serif;
+  font-size: 0.92rem;
+  font-weight: 500;
+  line-height: 1.5;
+  color: #334155;
+}
+
+.welcome-explore__link {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 700;
+  color: var(--brand-pe-orange);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.welcome-explore__link:hover,
+.welcome-explore__link:focus-visible {
+  color: #c2410c;
+}
+
+.welcome-survey-text {
+  margin: 0;
+  font-family: "Franklin Gothic Book", "Libre Franklin", sans-serif;
+  font-size: 0.95rem;
+  font-weight: 500;
+  line-height: 1.5;
+  color: #1f2937;
+}
+
+.welcome-section--survey {
+  padding: 14px 16px;
+  background: #fff7ed;
+  border-left: 4px solid var(--brand-pe-orange);
+  border-radius: 6px;
+}
+
+.welcome-section--survey .welcome-section__title {
+  color: #9a3412;
+  margin-bottom: 6px;
+}
+
+.welcome-section--auth {
+  margin-top: 8px;
+  padding-top: 24px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.welcome-auth-hint {
+  margin: 0 0 14px;
+  font-family: "Franklin Gothic Book", "Libre Franklin", sans-serif;
+  font-size: 0.95rem;
+  font-weight: 500;
+  line-height: 1.45;
+  color: #4b5563;
+}
+
+.welcome-device-note {
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border-left: 4px solid var(--brand-pe-orange);
+  border-radius: 6px;
+  background: #fff6ed;
+  font-family: "Franklin Gothic Book", "Libre Franklin", sans-serif;
+  font-size: 0.9rem;
+  font-weight: 500;
+  line-height: 1.45;
+  color: #7c3a06;
+}
+
+.welcome-device-note strong {
+  color: #9a3412;
+  font-weight: 700;
+}
+
+.welcome-form {
+  max-width: 360px;
+}
+
+/* "Back to Dashboard" button shown only when the welcome page is being
+   re-opened as a tutorial review (the `.login-gate--review` modifier is
+   toggled by the View Tutorial button). In review mode the password form
+   is hidden and this button takes its place. */
+.welcome-back-btn {
+  max-width: 260px;
+}
+
+.welcome-back-btn[hidden] {
+  display: none !important;
+}
+
+.login-gate--review .welcome-auth-primary {
+  display: none;
+}
+
+.login-gate--review .welcome-back-btn[hidden] {
+  display: inline-block !important;
+}
+
+@media (max-width: 540px) {
+  .login-gate--welcome {
+    padding: 28px 16px;
+  }
+  .welcome-section {
+    margin-bottom: 22px;
+  }
+}
+
+/* [hidden] must win over .login-gate / .dashboard display rules. */
+#login-gate[hidden],
+#dashboard[hidden] {
+  display: none !important;
+}
+
+.dashboard {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  width: 100%;
+  height: 100%;
+  max-height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+  background: #fff;
+}
+
+.dashboard-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 0 0 50%;
+  width: 50%;
+  min-width: 240px;
+  padding: 16px 18px 24px;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: #fff;
+}
+
+.dashboard-resizer {
+  flex: 0 0 8px;
+  width: 8px;
+  min-height: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: #e5e7eb;
+  cursor: col-resize;
+  position: relative;
+  z-index: 5;
+  align-self: stretch;
+  transition: background 0.15s ease;
+}
+
+.dashboard-resizer:hover,
+.dashboard-resizer:focus-visible {
+  background: #cbd5e1;
+  outline: none;
+}
+
+/* Wider grab target without changing layout width */
+.dashboard-resizer::before {
+  content: "";
+  position: absolute;
+  left: -6px;
+  right: -6px;
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+}
+
+/** Top block: title + credits, then Existing/Scenario control (left). */
+.sidebar-top-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
+  flex-shrink: 0;
+  margin-bottom: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e5e7eb;
+  --sidebar-header-asset-height: calc(0.72rem * 1.25 + 12px);
+}
+
+.sidebar-top-bar__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  min-width: 0;
+}
+
+.sidebar-top-bar__row--heading {
+  justify-content: space-between;
+}
+
+/* Journey nav: left-to-right steps, equal width, horizontal arrows between. */
+.sidebar-top-bar__row.sidebar-top-bar__row--switcher {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+}
+
+.page-journey {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* "View Tutorial" — sits to the left of the 1→4 step flowchart and
+   re-opens the welcome / tutorial page over the dashboard. Styled to
+   visually match the journey button row (same height, similar pill
+   shape) while staying clearly distinct from the numbered steps. */
+.view-tutorial-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-sizing: border-box;
+  min-height: 2.75rem;
+  height: 2.75rem;
+  padding: 0 14px;
+  font: inherit;
+  font-size: calc(0.8rem + 1px);
+  line-height: 1.2;
+  font-weight: 600;
+  color: #475569;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.view-tutorial-btn::before {
+  content: "";
+  display: inline-block;
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 7px solid currentColor;
+  margin-right: 2px;
+}
+
+.view-tutorial-btn:hover {
+  background: #fff;
+  border-color: var(--brand-pe-orange);
+  color: #0f172a;
+  box-shadow: 0 1px 3px rgba(255, 82, 13, 0.12);
+}
+
+.view-tutorial-btn:focus-visible {
+  outline: 2px solid var(--brand-pe-orange);
+  outline-offset: 2px;
+}
+
+.page-journey__track {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  width: 100%;
+  min-width: 0;
+}
+
+.page-journey__item {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.page-journey__connector {
+  flex: 0 0 1.35rem;
+  width: 1.35rem;
+  min-width: 1.35rem;
+  height: 3px;
+  margin: 0 3px;
+  align-self: center;
+  background: linear-gradient(
+    90deg,
+    #cbd5e1 0%,
+    #cbd5e1 calc(100% - 7px),
+    transparent calc(100% - 7px)
+  );
+  position: relative;
+}
+
+.page-journey__connector::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 5px solid transparent;
+  border-left: 7px solid #94a3b8;
+}
+
+.page-journey__btn {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 2.75rem;
+  height: 2.75rem;
+  margin: 0;
+  padding: 0 7px 0 6px;
+  font: inherit;
+  font-size: calc(0.8rem + 1px);
+  line-height: 1.25;
+  font-weight: 500;
+  text-align: left;
+  color: #4b5563;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.page-journey__btn:hover {
+  background: #fff;
+  border-color: #d1d5db;
+  color: #111827;
+}
+
+.page-journey__btn:focus-visible {
+  outline: 2px solid var(--brand-pe-orange);
+  outline-offset: 2px;
+}
+
+.page-journey__btn.is-active {
+  background: #fff7f3;
+  border-color: var(--brand-pe-orange);
+  color: #111827;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(255, 82, 13, 0.12);
+}
+
+.page-journey__btn.is-complete:not(.is-active) {
+  border-color: #fdba74;
+  color: #374151;
+}
+
+.page-journey__btn.is-complete:not(.is-active) .page-journey__num {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.page-journey__num {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 1.45rem;
+  height: 1.45rem;
+  border-radius: 50%;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1;
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.page-journey__btn.is-active .page-journey__num {
+  background: var(--brand-pe-orange);
+  color: #fff;
+}
+
+.page-journey__label {
+  display: -webkit-box;
+  flex: 1 1 auto;
+  min-width: 0;
+  line-height: 1.2;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.sidebar-page-panel--feedback {
+  gap: 14px;
+}
+
+.feedback-panel__heading {
+  margin: 0 0 8px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.feedback-panel__intro,
+.feedback-panel__map-note {
+  margin: 0 0 14px;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: #4b5563;
+}
+
+.feedback-panel__map-note {
+  margin-bottom: 0;
+  font-size: 0.78rem;
+  color: #6b7280;
+}
+
+/* "Open survey in a new tab" link, styled as a brand-orange button. */
+.feedback-open-external-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  margin: 0 0 12px;
+  padding: 8px 14px;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--brand-pe-orange);
+  border: none;
+  border-radius: 6px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.feedback-open-external-btn:hover {
+  background: #e64a0c;
+  color: #fff;
+}
+
+.feedback-open-external-btn:focus-visible {
+  outline: 2px solid #111827;
+  outline-offset: 2px;
+}
+
+.feedback-open-external-btn__icon {
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+/* Sidebar-embedded Google Form, nested-scrollbar mode.
+   The .feedback-panel section is made a flex column that fills the sidebar's
+   available height, and the iframe wrap grabs all remaining vertical space.
+   The iframe then scrolls internally for the Google Form content while the
+   heading + intro + button stay pinned at the top of the sidebar. */
+.sidebar-page-panel--feedback > .feedback-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.feedback-google-embed-wrap {
+  flex: 1 1 auto;
+  min-height: 320px;
+  margin: 0;
+  overflow: hidden;
+}
+
+.feedback-google-embed {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
+  border: 0;
+  background: #ffffff;
+}
+
+.feedback-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.feedback-form > fieldset.feedback-form__group,
+.feedback-form > div.feedback-form__group {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  min-width: 0;
+  margin: 20px 0 0;
+  padding: 0;
+  border: none;
+}
+
+.feedback-form > fieldset.feedback-form__group > legend {
+  display: block;
+  width: 100%;
+  padding: 0;
+  float: none;
+}
+
+.feedback-form > :first-child {
+  margin-top: 0;
+}
+
+.feedback-form > .feedback-form__group--paired {
+  margin-top: 26px;
+}
+
+.feedback-form > .feedback-form__group--flush-top {
+  margin-top: 14px;
+}
+
+.feedback-form__group {
+  margin: 0;
+  border: none;
+}
+
+.feedback-form__legend,
+.feedback-form__label {
+  display: block;
+  margin: 0 0 10px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #374151;
+  line-height: 1.35;
+}
+
+.feedback-form__choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-family: "Franklin Gothic Book", "Franklin Gothic", "Libre Franklin",
+    "Arial Narrow", sans-serif;
+  font-weight: 500;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  color: #1f2937;
+  cursor: pointer;
+}
+
+.feedback-form__choice input {
+  margin-top: 0.15rem;
+  flex-shrink: 0;
+}
+
+.feedback-form__hint {
+  margin: 0 0 6px;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: #6b7280;
+}
+
+.feedback-form__hint--block {
+  margin: 0 0 12px;
+}
+
+/* Feedback form section rhythm (margin-top; legend margin-bottom set below). */
+#feedback-form > fieldset.feedback-form__group--contact > legend.feedback-form__legend {
+  margin-bottom: 2px;
+}
+
+#feedback-form > fieldset.feedback-form__group--contact > .feedback-form__hint--block {
+  margin-bottom: 10px;
+}
+
+#feedback-form > fieldset.feedback-form__group--role,
+#feedback-form > fieldset.feedback-form__group--k8-excitement,
+#feedback-form > fieldset.feedback-form__group--k8-factors,
+#feedback-form > fieldset.feedback-form__group--demographics {
+  margin-top: 24px;
+}
+
+#feedback-form > fieldset.feedback-form__group--role > legend.feedback-form__legend,
+#feedback-form > fieldset.feedback-form__group--k8-excitement > legend.feedback-form__legend,
+#feedback-form > fieldset.feedback-form__group--k8-factors > legend.feedback-form__legend,
+#feedback-form > fieldset.feedback-form__group--demographics > legend.feedback-form__legend {
+  margin-bottom: 0;
+}
+
+#feedback-form > fieldset.feedback-form__group--k8-factors > .feedback-form__hint--block {
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+
+#feedback-form > div.feedback-school-communities-field > .feedback-form__label {
+  margin-bottom: 4px;
+}
+
+.feedback-form__role-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(2, auto);
+  grid-auto-flow: column;
+  gap: 6px 10px;
+  align-items: start;
+}
+
+.feedback-form__role-grid .feedback-form__choice {
+  margin: 0;
+}
+
+.feedback-form__field {
+  margin: 0 0 12px;
+}
+
+.feedback-form__field:last-child {
+  margin-bottom: 0;
+}
+
+
+.feedback-form__demographics-row,
+.feedback-form__contact-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.feedback-form__demographics-row .feedback-form__field,
+.feedback-form__contact-row .feedback-form__field {
+  flex: 1 1 0;
+  min-width: 5.5rem;
+  margin-bottom: 0;
+}
+
+.feedback-form__demographics-row .feedback-form__label {
+  font-size: 0.75rem;
+  margin-bottom: 6px;
+}
+
+#feedback-form > fieldset.feedback-form__group--demographics
+  > .feedback-form__demographics-row
+  .feedback-form__label {
+  margin-bottom: 4px;
+}
+
+#feedback-form > fieldset.feedback-form__group--demographics > .feedback-form__demographics-row {
+  margin-top: 0;
+}
+
+#feedback-form > fieldset.feedback-form__group--role > .feedback-form__role-grid,
+#feedback-form > fieldset.feedback-form__group--k8-excitement > .feedback-scale {
+  margin-top: 0;
+}
+
+.feedback-form__select,
+.feedback-form__multiselect,
+.feedback-form__input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 8px 10px;
+  font: inherit;
+  font-family: "Franklin Gothic Book", "Franklin Gothic", "Libre Franklin",
+    "Arial Narrow", sans-serif;
+  font-weight: 500;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  color: #111827;
+}
+
+.feedback-form__select:focus,
+.feedback-form__input:focus {
+  outline: 2px solid var(--brand-pe-orange);
+  outline-offset: 1px;
+  border-color: var(--brand-pe-orange);
+}
+
+.feedback-school-communities-field {
+  position: relative;
+}
+
+.feedback-school-combobox {
+  position: relative;
+  width: 100%;
+}
+
+.feedback-school-combobox__trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  font-weight: 600;
+  text-align: left;
+  color: #111827;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.feedback-school-combobox__trigger:disabled {
+  cursor: not-allowed;
+  background: #f3f4f6;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.feedback-school-combobox__trigger:focus-visible {
+  outline: 2px solid var(--brand-pe-orange);
+  outline-offset: 2px;
+}
+
+.feedback-school-combobox.is-open .feedback-school-combobox__trigger {
+  border-color: var(--brand-pe-orange);
+}
+
+.feedback-school-combobox__trigger-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.feedback-school-combobox__chevron {
+  display: inline-block;
+  width: 0.5em;
+  height: 0.5em;
+  border-right: 2px solid #111827;
+  border-bottom: 2px solid #111827;
+  transform: rotate(45deg);
+  margin-top: -0.15em;
+  flex-shrink: 0;
+  transition: transform 0.15s ease;
+}
+
+.feedback-school-combobox.is-open .feedback-school-combobox__chevron {
+  transform: rotate(-135deg);
+  margin-top: 0.1em;
+}
+
+.feedback-school-combobox__list {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 16rem;
+  overflow-y: auto;
+  margin: 0;
+  padding: 6px 0;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+}
+
+.feedback-school-combobox__list[hidden] {
+  display: none !important;
+}
+
+.feedback-school-combobox__group-label {
+  padding: 8px 12px 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+
+.feedback-school-combobox__option {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 7px 12px;
+  font: inherit;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  text-align: left;
+  color: #111827;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.feedback-school-combobox__option:hover,
+.feedback-school-combobox__option:focus-visible {
+  background: #fff7f3;
+  outline: none;
+}
+
+.feedback-school-combobox__option.is-selected {
+  background: #ffedd5;
+  font-weight: 600;
+}
+
+.feedback-school-combobox__option--meta {
+  font-weight: 600;
+  color: #374151;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.feedback-school-combobox__empty {
+  padding: 10px 12px;
+  font-size: 0.82rem;
+  color: #6b7280;
+}
+
+.feedback-school-combobox__chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  min-height: 0;
+}
+
+.feedback-school-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: #fff;
+  background: var(--brand-pe-orange);
+  border-radius: 4px;
+}
+
+.feedback-school-chip__sep {
+  opacity: 0.85;
+  font-weight: 400;
+}
+
+.feedback-school-chip__remove {
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.feedback-school-chip__remove:hover {
+  opacity: 0.85;
+}
+
+.feedback-school-chip__remove:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 1px;
+}
+
+.feedback-scale {
+  margin: 0;
+}
+
+.feedback-scale__track {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+
+.feedback-scale__end-label {
+  flex: 0 0 4.75rem;
+  min-width: 0;
+  font-family: "Franklin Gothic Book", "Franklin Gothic", "Libre Franklin",
+    "Arial Narrow", sans-serif;
+  font-weight: 500;
+  font-size: 0.68rem;
+  line-height: 1.25;
+  color: #6b7280;
+}
+
+.feedback-scale__end-label--end {
+  text-align: right;
+}
+
+.feedback-scale__options {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: nowrap;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: 0;
+}
+
+.feedback-scale__option {
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  font-family: "Franklin Gothic Book", "Franklin Gothic", "Libre Franklin",
+    "Arial Narrow", sans-serif;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #374151;
+  cursor: pointer;
+}
+
+.feedback-scale__option input {
+  margin: 0;
+  accent-color: var(--brand-pe-orange);
+}
+
+.feedback-scale__value {
+  line-height: 1;
+}
+
+.feedback-scale__option:has(input:checked) .feedback-scale__value {
+  color: var(--brand-pe-orange);
+}
+
+.feedback-k8-factors__ranked {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 2.5rem;
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border: 1px dashed #d1d5db;
+  border-radius: 6px;
+  background: #fafafa;
+}
+
+.feedback-k8-factors__ranked:empty::before {
+  content: "Your top five will appear here (most important at the top).";
+  display: block;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: #9ca3af;
+}
+
+.feedback-k8-factors__ranked-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  font-family: "Franklin Gothic Book", "Franklin Gothic", "Libre Franklin",
+    "Arial Narrow", sans-serif;
+  font-weight: 500;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  color: #111827;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+}
+
+.feedback-k8-factors__rank-badge {
+  flex-shrink: 0;
+  min-width: 1.5rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--brand-pe-orange);
+  text-align: center;
+}
+
+.feedback-k8-factors__rank-label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.feedback-k8-factors__rank-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 2px;
+}
+
+.feedback-k8-factors__rank-btn {
+  margin: 0;
+  padding: 2px 6px;
+  font: inherit;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  color: #374151;
+  background: #f3f4f6;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.feedback-k8-factors__rank-btn:hover:not(:disabled) {
+  background: #fff7f3;
+  border-color: var(--brand-pe-orange);
+  color: var(--brand-pe-orange);
+}
+
+.feedback-k8-factors__rank-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.feedback-k8-factors__rank-btn--remove {
+  color: #6b7280;
+}
+
+.feedback-k8-factors__pool-label {
+  margin: 0 0 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.feedback-k8-factors__pool {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 8px;
+  align-items: stretch;
+}
+
+.feedback-form__group--paired .feedback-form__subsection {
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.feedback-form__group--paired .feedback-form__subsection + .feedback-form__subsection {
+  margin-top: 16px;
+  padding-top: 0;
+}
+
+.feedback-form__group--paired .feedback-form__legend {
+  margin-bottom: 8px;
+}
+
+.feedback-k8-factors__pool-btn {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 7px 10px;
+  font: inherit;
+  font-family: "Franklin Gothic Book", "Franklin Gothic", "Libre Franklin",
+    "Arial Narrow", sans-serif;
+  font-weight: 500;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  text-align: left;
+  color: #111827;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.feedback-k8-factors__pool-btn:hover:not(:disabled) {
+  border-color: var(--brand-pe-orange);
+  background: #fff7f3;
+}
+
+.feedback-k8-factors__pool-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: #f9fafb;
+}
+
+.feedback-form__textarea {
+  width: 100%;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  resize: vertical;
+  min-height: 5rem;
+}
+
+.feedback-form__textarea:focus {
+  outline: 2px solid var(--brand-pe-orange);
+  outline-offset: 1px;
+  border-color: var(--brand-pe-orange);
+}
+
+.feedback-form__submit {
+  align-self: flex-start;
+  margin: 20px 0 0;
+  padding: 8px 16px;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--brand-pe-orange);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.feedback-form__submit:hover {
+  background: #e64a0c;
+}
+
+.feedback-form__submit:focus-visible {
+  outline: 2px solid #111827;
+  outline-offset: 2px;
+}
+
+.feedback-form.is-submitted {
+  display: none;
+}
+
+.feedback-thanks {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #fff7f3;
+  border: 1px solid #fdba74;
+}
+
+.feedback-thanks__message {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #9a3412;
+  line-height: 1.4;
+}
+
+.sidebar-credits {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px 10px;
+  flex: 0 1 auto;
+  margin-left: auto;
+  font-size: 0.72rem;
+  line-height: 1.25;
+  color: #4b5563;
+}
+
+.sidebar-credits__text {
+  white-space: nowrap;
+}
+
+.sidebar-credits__logo {
+  height: var(--sidebar-header-asset-height);
+  width: auto;
+  max-width: min(42vw, 11.5rem);
+  object-fit: contain;
+  display: block;
+  flex-shrink: 0;
+}
+
+/* Brevard mark is mostly graphic + small type; scale up so letterforms read near the credit line size. */
+.sidebar-credits__logo--brevard {
+  height: calc(var(--sidebar-header-asset-height) * 2.15 * 0.8);
+  max-width: min(55vw, 15rem);
+}
+
+.sidebar-brand-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.35em;
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.35;
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.sidebar-brand-main {
+  font-weight: 700;
+  color: #111827;
+}
+
+.sidebar-brand-product {
+  color: var(--brand-pe-orange);
+}
+
+.sidebar-brand-view {
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.page-switcher {
+  /* Triple variant overrides: shrink-wrap tab strip, cap width in narrow sidebars. */
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.page-switcher.basemap-segmented button {
+  font-size: 0.72rem;
+  padding: 6px 8px;
+  line-height: 1.25;
+  max-width: 11.5rem;
+  white-space: normal;
+  text-align: center;
+}
+
+/* Three dashboard tabs: hug content (grey bar ends after last tab). */
+.page-switcher.page-switcher--triple.basemap-segmented {
+  width: max-content;
+  min-width: 0;
+  max-width: 100%;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  box-sizing: border-box;
+  flex-shrink: 1;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Override general basemap button rules: one line (0.72rem / 1.25 / 6px vertical). */
+.page-switcher.page-switcher--triple.basemap-segmented button {
+  max-width: none;
+  min-width: min-content;
+  flex: 0 0 auto;
+  font: inherit;
+  font-size: 0.72rem;
+  line-height: 1.25;
+  padding: 6px 8px;
+  white-space: nowrap;
+  text-align: center;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.sidebar-page-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+/* [hidden] must win over .sidebar-page-panel { display: flex } or both views stack visibly. */
+.sidebar-page-panel[hidden] {
+  display: none !important;
+}
+
+.sidebar-page-panel--sandbox {
+  gap: 14px;
+}
+
+.panel-howto {
+  padding: 10px 10px 12px;
+  border-radius: 6px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.panel-howto__title {
+  margin: 0 0 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #475569;
+}
+
+/* Collapsible "How to use" (native <details>/<summary>). */
+summary.panel-howto__title {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  user-select: none;
+}
+
+summary.panel-howto__title::-webkit-details-marker {
+  display: none;
+}
+
+/* Custom chevron that rotates when the section is open. */
+summary.panel-howto__title::before {
+  content: "";
+  width: 0.45em;
+  height: 0.45em;
+  border-right: 2px solid #64748b;
+  border-bottom: 2px solid #64748b;
+  transform: rotate(-45deg);
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+details.panel-howto[open] > summary.panel-howto__title::before {
+  transform: rotate(45deg);
+}
+
+/* No gap below the summary when the section is collapsed. */
+details.panel-howto:not([open]) > summary.panel-howto__title {
+  margin-bottom: 0;
+}
+
+summary.panel-howto__title:focus-visible {
+  outline: 2px solid var(--brand-pe-orange);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* Parenthetical state hint ("(click to expand/collapse)") next to the title. */
+.panel-howto__hint {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.panel-howto__list {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-family: "Franklin Gothic Book", "Franklin Gothic", "Libre Franklin",
+    "Arial Narrow", sans-serif;
+  font-weight: 500;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: #334155;
+}
+
+.panel-howto__list li {
+  margin-bottom: 6px;
+}
+
+.panel-howto__list li:last-child {
+  margin-bottom: 0;
+}
+
+.sandbox-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sandbox-hint,
+.sandbox-placeholder,
+.sandbox-placeholder--demog {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: #6b7280;
+}
+
+.sandbox-hint code {
+  font-size: 0.72em;
+  background: #f1f5f9;
+  padding: 0 0.2em;
+  border-radius: 2px;
+}
+
+.sandbox-hex-tool-fieldset {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #fafafa;
+}
+
+.sandbox-hex-tool-legend {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #64748b;
+  padding: 0 4px;
+}
+
+.sandbox-hex-tool-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 2px;
+}
+
+.sandbox-hex-tool-bar .sandbox-hex-tool-toggles {
+  margin-top: 0;
+}
+
+.sandbox-hex-mode-group {
+  color: #cbd5e1;
+  font-size: 0.78rem;
+  line-height: 1;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+/* Segmented pill toggles (lasso/paintbrush and select/erase). The radio inputs
+   are kept for state + accessibility but visually hidden; each <label> renders
+   as a connected pill segment with an icon. */
+.sandbox-hex-tool-toggles {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 2px;
+  margin-top: 2px;
+  padding: 2px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+}
+
+.sandbox-hex-tool-option {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #475569;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease,
+    box-shadow 0.12s ease;
+}
+
+.sandbox-hex-tool-option input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sandbox-tool-icon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+.sandbox-hex-tool-option:hover {
+  color: #0f172a;
+}
+
+.sandbox-hex-tool-option:has(input:checked) {
+  background: #fff;
+  color: #0f172a;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.16);
+}
+
+/* Erase reads as a "destructive" mode, so tint its active segment red. */
+.sandbox-hex-tool-option:has(#sandbox-hex-mode-erase:checked) {
+  color: #b91c1c;
+}
+
+.sandbox-hex-tool-option:has(input:focus-visible) {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.sandbox-confirm-btn,
+.sandbox-clear-btn {
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 5px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #1e293b;
+  cursor: pointer;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease,
+    box-shadow 0.12s ease,
+    transform 0.08s ease;
+}
+
+.sandbox-confirm-btn:hover:not(.is-inert) {
+  background: #fff;
+  border-color: #94a3b8;
+  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.06);
+}
+
+.sandbox-confirm-btn--pending:not(.is-inert) {
+  background: #f0fdf4;
+  border-color: #4ade80;
+  color: #14532d;
+  box-shadow: 0 0 0 1px rgba(74, 222, 128, 0.25);
+}
+
+.sandbox-confirm-btn--pending:hover:not(.is-inert) {
+  background: #dcfce7;
+  border-color: #22c55e;
+  box-shadow: 0 2px 4px rgba(20, 83, 45, 0.12);
+}
+
+.sandbox-clear-btn:hover {
+  background: #fef2f2;
+  border-color: #f87171;
+  color: #991b1b;
+  box-shadow: 0 2px 4px rgba(153, 27, 27, 0.1);
+}
+
+.sandbox-confirm-btn:active:not(.is-inert),
+.sandbox-clear-btn:active {
+  transform: translateY(1px);
+  box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+}
+
+.sandbox-confirm-btn:focus-visible,
+.sandbox-clear-btn:focus-visible {
+  outline: 2px solid #64748b;
+  outline-offset: 2px;
+}
+
+.sandbox-confirm-btn.is-inert {
+  opacity: 0.72;
+  cursor: not-allowed;
+  box-shadow: none;
+  color: #64748b;
+  background: #f1f5f9;
+}
+
+.sandbox-confirm-btn:not(.is-inert):not(.sandbox-confirm-btn--pending) {
+  background: #fff;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.sandbox-base-school {
+  width: 100%;
+  max-width: 100%;
+}
+
+.sandbox-placeholder-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+/* By enrollment and by zoned, side by side (wraps like demographics). */
+.sandbox-stat-bicolumn {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  width: 100%;
+  align-items: stretch;
+  flex-shrink: 0;
+}
+
+.sandbox-stat-bicolumn .sandbox-card--stat {
+  flex: 1 1 12.5rem;
+  min-width: 0;
+}
+
+.sandbox-card {
+  border: 1px dashed #cbd5e1;
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: #fff;
+}
+
+.sandbox-card--placeholder {
+  color: #94a3b8;
+}
+
+.sandbox-card--stat {
+  border-style: solid;
+  border-color: #e2e8f0;
+  color: #334155;
+}
+
+.sandbox-card--stat .sandbox-card__body {
+  line-height: 1.45;
+  min-height: 2.4rem;
+}
+
+.sandbox-stat-line {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 4px 8px;
+  margin-bottom: 2px;
+  font-size: 0.78rem;
+}
+
+.sandbox-stat-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: #475569;
+}
+
+.sandbox-stat-val {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.sandbox-stat-note {
+  margin-top: 4px;
+  margin-bottom: 0;
+  font-size: 0.72rem;
+  color: #64748b;
+  font-style: italic;
+}
+
+.sandbox-school-list {
+  width: 100%;
+  min-width: 0;
+}
+
+.sandbox-school-list-scroll {
+  max-height: 9.5rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 2px 4px 4px 2px;
+  border-radius: 4px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  margin: 0 0 4px 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+button.sandbox-school-expand {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 5px 8px;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 500;
+  line-height: 1.3;
+  text-align: left;
+  color: #334155;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+button.sandbox-school-expand:hover {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.sandbox-grade-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+}
+
+.sandbox-grade-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px 6px;
+  min-width: 0;
+  font-size: 0.75rem;
+}
+
+.sandbox-grade-row--select-all {
+  padding-bottom: 4px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.sandbox-grade-label-col--select-all {
+  flex: 1 1 auto;
+  min-width: 3rem;
+  text-align: left;
+  font-weight: 600;
+  color: #334155;
+}
+
+.sandbox-grade-check {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  min-width: 1.1rem;
+}
+
+.sandbox-grade-check input {
+  width: 0.85rem;
+  height: 0.85rem;
+  margin: 0;
+  cursor: pointer;
+  accent-color: #525252;
+}
+
+.sandbox-grade-label-col {
+  flex: 0 0 1.4rem;
+  min-width: 1.4rem;
+  text-align: right;
+  color: #475569;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.sandbox-grade-bar-area {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.sandbox-grade-bar-outer {
+  width: 100%;
+  height: 9px;
+  border-radius: 3px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.sandbox-grade-bar-inner {
+  height: 100%;
+  min-width: 0;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #525252, #9ca3af);
+  transition: width 0.2s ease, opacity 0.15s ease;
+}
+
+.sandbox-grade-bar-inner.is-excluded {
+  opacity: 0.38;
+  background: linear-gradient(90deg, #94a3b8, #cbd5e1);
+}
+
+.sandbox-grade-count-col {
+  flex: 0 0 2.25rem;
+  min-width: 2.25rem;
+  text-align: right;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #0f172a;
+}
+
+.sandbox-grade-total {
+  margin: 6px 0 0;
+  font-size: 0.72rem;
+  color: #64748b;
+  text-align: right;
+}
+
+/* "By attendance type" uses the same bar layout as the grade card; full school type names. */
+.sandbox-grade-chart--attendance .sandbox-grade-label-col {
+  flex: 0 1 12.5rem;
+  min-width: 7.5rem;
+  max-width: 16rem;
+  text-align: left;
+  line-height: 1.3;
+  white-space: normal;
+}
+
+.sandbox-grade-bar-inner.sandbox-atype--zoned {
+  background: linear-gradient(90deg, #16a34a, #4ade80);
+}
+
+.sandbox-grade-bar-inner.sandbox-atype--other {
+  background: linear-gradient(90deg, #64748b, #94a3b8);
+}
+
+.sandbox-grade-bar-inner.sandbox-atype--charter {
+  background: linear-gradient(90deg, #be185d, #f472b6);
+}
+
+.sandbox-grade-bar-inner.sandbox-atype--choice {
+  background: linear-gradient(90deg, #1d4ed8, #93c5fd);
+}
+
+.sandbox-grade-bar-inner.sandbox-atype--homeschool {
+  background: linear-gradient(90deg, #c2410c, #fdba74);
+}
+
+.sandbox-card__title {
+  margin: 0 0 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: none;
+  letter-spacing: 0.02em;
+}
+
+.sandbox-card__body {
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.sandbox-stats-section {
+  margin: 0;
+}
+
+.sandbox-stats-section .enrollment-chart-heading {
+  margin: 0 0 4px;
+}
+
+.demographics-row--sandbox {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.demographics-row--sandbox .enrollment-chart-heading {
+  margin: 0;
+}
+
+/* Match main sidebar `.demographics-row`: two pie cards side by side when width allows. */
+.demographics-row--sandbox-inner {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 10px;
+  width: 100%;
+  align-items: flex-start;
+  flex-shrink: 0;
+}
+
+.sandbox-demographics-note {
+  margin: 6px 0 0;
+  font-size: 0.7rem;
+  line-height: 1.4;
+  color: #64748b;
+}
+
+.demographics-chart-card--sandbox-lunch .sandbox-demographics-note {
+  margin-top: 8px;
+  margin-bottom: 0;
+  text-align: right;
+}
+
+.sidebar-page-panel--scenario {
+  gap: 14px;
+}
+
+.scenario-placeholder {
+  margin: 0;
+  padding: 20px 16px;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: #6b7280;
+  text-align: center;
+  background: #f9fafb;
+  border: 1px dashed #d1d5db;
+  border-radius: 6px;
+}
+
+.scenario-merger-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 12px;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+}
+
+.scenario-merger-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  flex: 1 1 auto;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: #374151;
+  cursor: pointer;
+}
+
+.scenario-merger-control > .info-tip {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.scenario-merger-label input {
+  margin-top: 0.2em;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.scenario-merger-control.is-disabled .scenario-merger-label,
+.scenario-merger-control.is-disabled .scenario-merger-label input {
+  cursor: not-allowed;
+  color: #9ca3af;
+}
+
+.scenario-merger-control.is-disabled .scenario-merger-label input {
+  opacity: 0.6;
+}
+
+.scenario-data-alerts {
+  padding: 10px 12px;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 6px;
+}
+
+.scenario-data-alerts-title {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 700;
+}
+
+.scenario-data-alerts-list {
+  margin: 0;
+  padding-left: 1.1em;
+}
+
+.scenario-feeder-fieldset {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fafafa;
+}
+
+.scenario-feeder-heading-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 0 6px 8px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 0.84rem;
+  color: #374151;
+}
+
+.scenario-feeder-heading-metrics {
+  display: flex;
+  flex-shrink: 0;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+.scenario-feeder-heading-main {
+  font-weight: 700;
+}
+
+.scenario-feeder-grade-heading,
+.scenario-feeder-remaining-heading,
+.scenario-feeder-util-heading {
+  flex: 0 0 auto;
+  font-weight: 700;
+  text-align: right;
+  white-space: normal;
+  line-height: 1.2;
+}
+
+.scenario-feeder-grade-heading {
+  width: 5.5rem;
+}
+
+.scenario-feeder-remaining-heading {
+  width: 7rem;
+}
+
+.scenario-feeder-util-heading {
+  width: 7rem;
+}
+
+.scenario-feeder-list {
+  margin: 0;
+  padding: 0 6px;
+  list-style: none;
+  /* Flex column lets us visually reorder the base school to the top and the
+     "add another school" search row to the bottom via the `order` property,
+     without changing DOM order (which other index-keyed UI code relies on). */
+  display: flex;
+  flex-direction: column;
+}
+
+.scenario-feeder-item--base {
+  order: -1;
+}
+
+.scenario-feeder-item--add {
+  order: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 8px 6px 8px;
+  margin-top: 6px;
+  border-top: 1px dashed #cbd5e1;
+}
+
+.scenario-feeder-add-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.scenario-feeder-add-prefix {
+  font-size: 0.78rem;
+  color: #374151;
+  font-weight: 500;
+}
+
+.scenario-feeder-add-input {
+  flex: 1 1 220px;
+  min-width: 200px;
+  padding: 4px 8px;
+  font-size: 0.82rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #111827;
+}
+
+.scenario-feeder-add-input:focus {
+  outline: 2px solid #93c5fd;
+  outline-offset: 1px;
+  border-color: #93c5fd;
+}
+
+.scenario-feeder-add-btn {
+  padding: 4px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid #93c5fd;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  cursor: pointer;
+}
+
+.scenario-feeder-add-btn:hover:not(:disabled) {
+  background: #dbeafe;
+}
+
+.scenario-feeder-add-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.scenario-feeder-add-msg {
+  font-size: 0.72rem;
+  color: #b91c1c;
+  margin: 0;
+}
+
+.scenario-feeder-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "label metrics"
+    "chips chips";
+  align-items: baseline;
+  column-gap: 12px;
+  row-gap: 4px;
+  padding: 8px 0;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 0.84rem;
+}
+
+.scenario-feeder-item > .scenario-feeder-label {
+  grid-area: label;
+}
+
+.scenario-feeder-item > .scenario-feeder-item-metrics {
+  grid-area: metrics;
+}
+
+.scenario-feeder-item > .scenario-feeder-grade-chips {
+  grid-area: chips;
+  justify-self: start;
+}
+
+.scenario-feeder-item:last-child {
+  border-bottom: none;
+}
+
+.scenario-feeder-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.scenario-feeder-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-top: 2px;
+  border-radius: 2px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  flex-shrink: 0;
+}
+
+.scenario-feeder-label input:disabled {
+  cursor: not-allowed;
+}
+
+.scenario-feeder-name {
+  color: #1f2937;
+  line-height: 1.35;
+}
+
+.scenario-feeder-name__paren {
+  font-family: "Franklin Gothic Book", "Franklin Gothic", "Libre Franklin",
+    "Arial Narrow", sans-serif;
+  font-weight: 500;
+  color: #475569;
+}
+
+.scenario-feeder-item-metrics {
+  display: flex;
+  flex-shrink: 0;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  margin-left: auto;
+}
+
+/* '25-26 enrollment shows in the name parenthetical on desktop; this per-row
+   value is only surfaced in the mobile two-column feeder layout. */
+.scenario-feeder-enroll {
+  display: none;
+}
+
+.scenario-feeder-grade {
+  flex: 0 0 auto;
+  width: 5.5rem;
+  text-align: right;
+  font-family: "Franklin Gothic Book", "Franklin Gothic", "Libre Franklin",
+    "Arial Narrow", sans-serif;
+  font-weight: 500;
+  color: #334155;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+}
+
+.scenario-feeder-remaining {
+  flex: 0 0 auto;
+  width: 7rem;
+  text-align: right;
+  font-family: "Franklin Gothic Book", "Franklin Gothic", "Libre Franklin",
+    "Arial Narrow", sans-serif;
+  font-weight: 500;
+  color: #334155;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+}
+
+.scenario-feeder-util-change {
+  flex: 0 0 auto;
+  width: 7rem;
+  text-align: right;
+  font-family: "Franklin Gothic Book", "Franklin Gothic", "Libre Franklin",
+    "Arial Narrow", sans-serif;
+  font-weight: 500;
+  color: #334155;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+}
+
+.scenario-feeder-flag {
+  flex-basis: 100%;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #b45309;
+  flex-shrink: 0;
+}
+
+.dashboard-controls {
+  margin-bottom: 12px;
+}
+
+.school-select-wrap {
+  position: relative;
+}
+
+/* The .select-loading-overlay rules below are dead — the overlay span was
+   removed from index.html in favor of a single map-wide loading overlay. Kept
+   as harmless dead CSS so the overlay can be re-introduced easily if needed. */
+.select-loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 4px;
+  background: #f3f4f6;
+  font: inherit;
+  font-size: 0.88rem;
+  color: #4b5563;
+  pointer-events: none;
+}
+
+.school-select:disabled + .select-loading-overlay {
+  display: flex;
+}
+
+/* Map-wide loading overlay. Visible by default; hidden via the .is-hidden
+   modifier (set from app.js once all data fetches resolve). Lives inside the
+   .dashboard-map-wrap so it inherits the same hide-while-login-gate behavior. */
+.map-loading-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(248, 250, 252, 0.92);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  pointer-events: none;
+  transition: opacity 0.25s ease, visibility 0.25s ease;
+}
+
+.map-loading-overlay.is-hidden {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.map-loading-overlay__card {
+  max-width: 420px;
+  padding: 22px 26px;
+  text-align: center;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid var(--brand-pe-orange);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+  pointer-events: auto;
+}
+
+.map-loading-overlay__title {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.map-loading-overlay__hint {
+  margin: 0;
+  font-family: "Franklin Gothic Book", "Libre Franklin", sans-serif;
+  font-size: 0.92rem;
+  font-weight: 500;
+  line-height: 1.5;
+  color: #475569;
+}
+
+.loading-ellipsis {
+  display: inline-block;
+  min-width: 1.5ch;
+  text-align: left;
+}
+
+.loading-ellipsis::after {
+  display: inline-block;
+  content: ".";
+  animation: loading-ellipsis-anim 1.2s infinite;
+}
+
+@keyframes loading-ellipsis-anim {
+  0% {
+    content: ".";
+  }
+  33% {
+    content: "..";
+  }
+  66% {
+    content: "...";
+  }
+  100% {
+    content: ".";
+  }
+}
+
+.school-select {
+  width: 100%;
+  max-width: 100%;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 0.88rem;
+  color: #4b5563;
+  background: #f3f4f6;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.school-select:disabled {
+  cursor: not-allowed;
+}
+
+/* Searchable combobox that wraps an existing <select>. The native select stays in the DOM
+   (visually hidden when the combobox is active) so existing .value reads, change handlers,
+   and the loading overlay keep working. */
+.school-select-wrap.is-searchable .school-select {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.searchable-select__trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 0.88rem;
+  color: #4b5563;
+  text-align: left;
+  background: #f3f4f6;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.searchable-select__trigger:hover {
+  background: #e5e7eb;
+}
+
+.searchable-select__trigger:focus-visible {
+  outline: 2px solid var(--brand-pe-orange);
+  outline-offset: 1px;
+}
+
+.school-select-wrap.is-searchable .school-select:disabled ~ .searchable-select__trigger {
+  display: none;
+}
+
+.searchable-select__trigger-text {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.searchable-select__trigger-text.is-placeholder {
+  color: #9ca3af;
+}
+
+.searchable-select__caret {
+  flex: 0 0 auto;
+  font-size: 0.7rem;
+  color: #6b7280;
+}
+
+.searchable-select__popup {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 60;
+  margin-top: 2px;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.14);
+  display: flex;
+  flex-direction: column;
+  max-height: 320px;
+}
+
+.searchable-select__popup[hidden] {
+  display: none;
+}
+
+.searchable-select__search {
+  flex: 0 0 auto;
+  margin: 6px;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 0.85rem;
+  color: #1f2937;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+}
+
+.searchable-select__search:focus-visible {
+  outline: 2px solid var(--brand-pe-orange);
+  outline-offset: -1px;
+  border-color: var(--brand-pe-orange);
+}
+
+.searchable-select__list {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 0 4px 4px;
+}
+
+.searchable-select__option {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  font: inherit;
+  font-size: 0.85rem;
+  color: #1f2937;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.searchable-select__option:hover {
+  background: #f3f4f6;
+}
+
+.searchable-select__option.is-active {
+  background: #e5e7eb;
+}
+
+.searchable-select__option.is-selected {
+  color: var(--brand-pe-orange);
+  font-weight: 600;
+}
+
+.searchable-select__empty {
+  padding: 10px 12px;
+  font-size: 0.85rem;
+  color: #6b7280;
+  font-style: italic;
+}
+
+.school-details {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: #374151;
+}
+
+.school-details-line {
+  margin: 0 0 6px;
+}
+
+.school-details-meta {
+  color: #6b7280;
+  font-size: 0.8rem;
+}
+
+.school-details-placeholder {
+  font-style: italic;
+}
+
+.scenario-school-details #scenario-details-kpi-capture:not(.school-details-placeholder) {
+  cursor: help;
+}
+
+.kpi-section {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.kpi-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, 1fr);
+}
+
+@media (min-width: 520px) {
+  .kpi-grid--primary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .kpi-grid--capture {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .kpi-grid--capture.kpi-grid--capture--five {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+.kpi-capture-panel__heading-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  margin-bottom: 10px;
+}
+
+.kpi-capture-panel__title {
+  margin: 0;
+}
+
+.kpi-capture-homeschool-toggle {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #374151;
+  cursor: pointer;
+  user-select: none;
+  max-width: 100%;
+}
+
+.kpi-capture-homeschool-toggle input {
+  margin-top: 0.15em;
+  flex-shrink: 0;
+  accent-color: #dc2626;
+}
+
+.kpi-capture-panel {
+  padding: 12px 12px 10px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+}
+
+.kpi-capture-card-label {
+  margin: 0 0 8px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #374151;
+}
+
+.kpi-capture-panel .kpi-card {
+  padding: 14px 8px 12px;
+}
+
+.kpi-capture-panel .kpi-value {
+  font-size: 1.2rem;
+}
+
+.kpi-card {
+  margin: 0;
+  padding: 12px 10px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  text-align: center;
+}
+
+.kpi-card[title] {
+  cursor: help;
+}
+
+.kpi-label {
+  margin: 0 0 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #4b5563;
+}
+
+.info-tip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: 4px;
+  padding: 0;
+  border: 1px solid #94a3b8;
+  border-radius: 999px;
+  background: transparent;
+  color: #64748b;
+  font-family: "Franklin Gothic Medium", "Franklin Gothic", "Libre Franklin",
+    "Arial Narrow", sans-serif;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: help;
+  vertical-align: middle;
+  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.info-tip:hover,
+.info-tip:focus-visible {
+  background: #e2e8f0;
+  color: #1f2937;
+  border-color: #64748b;
+}
+
+.info-tip:focus-visible {
+  outline: 2px solid var(--brand-pe-orange);
+  outline-offset: 1px;
+}
+
+.kpi-value {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.kpi-value--choice-na {
+  font-size: 0.95rem;
+  line-height: 1.25;
+  font-weight: 600;
+  color: #9ca3af;
+}
+
+.kpi-value--placeholder {
+  color: #c41e3a;
+}
+
+.chart-placeholder {
+  flex-shrink: 0;
+  min-height: 140px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  background: #fff;
+  border: 1px dashed #d1d5db;
+  border-radius: 4px;
+}
+
+.chart-placeholder--tall {
+  min-height: 200px;
+}
+
+.sankey-panel {
+  flex-shrink: 0;
+  padding: 12px 14px 14px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  min-height: 220px;
+}
+
+/* Tighter chrome when two Sankey charts are side by side (middle schools). */
+.sankey-panel--split {
+  padding: 8px 8px 10px;
+}
+
+.sankey-panel--split .sankey-heading {
+  margin-bottom: 8px;
+}
+
+.sankey-panel--split .sankey-subheading {
+  margin-bottom: 4px;
+  font-size: 0.68rem;
+}
+
+.sankey-heading {
+  margin: 0 0 12px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #374151;
+}
+
+.sankey-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.sankey-row--split {
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  column-gap: 6px;
+}
+
+@media (max-width: 960px) {
+  .sankey-row--split {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sankey-row--es-only .sankey-col--ms-hs,
+.sankey-row--hs-only .sankey-col--es-ms {
+  display: none;
+}
+
+.sankey-row--es-only .sankey-col--es-ms,
+.sankey-row--hs-only .sankey-col--ms-hs {
+  grid-column: 1 / -1;
+}
+
+.sankey-subheading {
+  margin: 0 0 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #4b5563;
+  letter-spacing: 0.02em;
+}
+
+.sankey-col {
+  min-width: 0;
+}
+
+.sankey-chart {
+  min-height: 200px;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+}
+
+.sankey-chart .sankey-empty {
+  margin: 0;
+  padding: 24px 12px;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: #6b7280;
+  text-align: center;
+}
+
+.sankey-empty--muted {
+  color: #9ca3af;
+  font-size: 0.8rem;
+  padding: 16px 10px;
+}
+
+.sankey-svg {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+}
+
+.sankey-link {
+  cursor: help;
+}
+
+.sankey-link--emphasis:hover {
+  stroke-opacity: 0.82 !important;
+}
+
+.sankey-link--secondary:hover {
+  stroke-opacity: 0.5 !important;
+}
+
+.sankey-label {
+  font-family: inherit;
+}
+
+.sankey-label-name {
+  font-size: 16px;
+  font-weight: 600;
+  fill: #111827;
+}
+
+.sankey-label-total {
+  font-size: 13px;
+  font-weight: 500;
+  fill: #4b5563;
+}
+
+.chart-placeholder--small {
+  min-height: 160px;
+  flex: 1;
+  min-width: 0;
+}
+
+.chart-placeholder-label {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: #4b5563;
+  max-width: 36em;
+}
+
+.enrollment-chart-panel {
+  flex-shrink: 0;
+  padding: 12px 14px 14px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+}
+
+.enrollment-chart-heading {
+  margin: 0 0 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #4b5563;
+}
+
+.enrollment-chart {
+  width: 100%;
+  min-height: 200px;
+  overflow-x: auto;
+}
+
+.enrollment-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 270px;
+}
+
+.enrollment-chart-empty {
+  margin: 0;
+  padding: 24px 8px;
+  font-size: 0.82rem;
+  color: #6b7280;
+  text-align: center;
+}
+
+.enrollment-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin-top: 10px;
+  font-size: 0.68rem;
+  color: #4b5563;
+}
+
+.enrollment-chart-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.enrollment-chart-legend i {
+  display: inline-block;
+  width: 12px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.scenario-enrollment-chart-wrap {
+  position: relative;
+}
+
+.scenario-enrollment-tooltip {
+  position: fixed;
+  z-index: 80;
+  max-width: 280px;
+  padding: 10px 12px;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: #1f2937;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  pointer-events: none;
+}
+
+.scenario-enrollment-tooltip[hidden] {
+  display: none !important;
+}
+
+.scenario-enrollment-tooltip-title {
+  font-weight: 700;
+  margin-bottom: 6px;
+  color: #111827;
+}
+
+.scenario-enrollment-tooltip-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.scenario-enrollment-tooltip-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.scenario-enrollment-tooltip-list li:first-child {
+  margin-top: 0;
+}
+
+.scenario-enrollment-tooltip-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+}
+
+.scenario-enrollment-tooltip-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  position: relative;
+  top: 2px;
+}
+
+.travel-impact-section {
+  margin: 14px 0 12px;
+  flex-shrink: 0;
+}
+
+.travel-impact-heading {
+  margin: 0 0 10px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #374151;
+}
+
+.travel-impact-charts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.travel-impact-chart-card {
+  flex: 1;
+  min-width: 240px;
+  max-width: 100%;
+  padding: 10px 12px 12px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+}
+
+.travel-impact-chart-title {
+  margin: 0 0 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #4b5563;
+}
+
+.travel-impact-chart-body {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.travel-impact-chart-body .travel-hist-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+}
+
+.travel-hist-empty {
+  margin: 0;
+  font-size: 0.84rem;
+  color: #6b7280;
+  line-height: 1.45;
+}
+
+.demographics-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.demographics-chart-card {
+  flex: 1;
+  min-width: 200px;
+  max-width: 100%;
+  padding: 10px 12px 12px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+}
+
+.demographics-chart-title {
+  margin: 0 0 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #4b5563;
+}
+
+.demographics-chart-body {
+  min-height: 140px;
+}
+
+.demographics-pie-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.demographics-pie-inner svg {
+  display: block;
+  width: 180px;
+  height: 180px;
+  max-width: 100%;
+}
+
+.demographics-legend {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  width: 100%;
+  font-size: 0.68rem;
+  line-height: 1.35;
+  color: #374151;
+}
+
+.demographics-legend li {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-bottom: 4px;
+  font-family: "Franklin Gothic Book", "Franklin Gothic", "Libre Franklin",
+    "Arial Narrow", sans-serif;
+  font-weight: 500;
+  color: #334155;
+}
+
+.demographics-legend-swatch {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-top: 2px;
+}
+
+.demographics-pie-empty {
+  margin: 0;
+  padding: 16px 6px;
+  font-size: 0.78rem;
+  color: #6b7280;
+  text-align: center;
+}
+
+.ese-feeder-section {
+  margin-top: 10px;
+  flex-shrink: 0;
+  padding: 10px 12px 12px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  width: 100%;
+}
+
+.ese-feeder-heading {
+  margin: 0 0 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #4b5563;
+}
+
+.ese-feeder-table-wrap {
+  overflow-x: auto;
+}
+
+.ese-feeder-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: #374151;
+}
+
+.ese-feeder-table th,
+.ese-feeder-table td {
+  border: 1px solid #e5e7eb;
+  padding: 6px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.ese-feeder-table tbody td {
+  font-family: "Franklin Gothic Book", "Franklin Gothic", "Libre Franklin",
+    "Arial Narrow", sans-serif;
+  font-weight: 500;
+  color: #334155;
+}
+
+.ese-feeder-table thead th {
+  font-weight: 700;
+  background: #f9fafb;
+  color: #111827;
+}
+
+.ese-feeder-col-program {
+  width: 1%;
+}
+
+.ese-feeder-program-label {
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: help;
+}
+
+.ese-feeder-placeholder {
+  color: #6b7280;
+  text-align: center;
+  padding: 12px 8px;
+}
+
+.dashboard-map-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 280px;
+  background: #fff;
+}
+
+@media (max-width: 960px) {
+  .dashboard {
+    flex-direction: column;
+    overflow: hidden;
+    height: 100%;
+    max-height: 100vh;
+    min-height: 0;
+  }
+
+  .dashboard-resizer {
+    display: none;
+  }
+
+  .dashboard-sidebar {
+    flex: 1 1 50%;
+    width: 100% !important;
+    min-height: 0;
+    max-height: 50vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .dashboard-map-wrap {
+    flex: 1 1 50%;
+    min-height: 240px;
+    width: 100%;
+  }
+}
+
+.toolbar {
+  position: absolute;
+  z-index: 2;
+  right: 12px;
+  left: auto;
+  top: 12px;
+  max-width: min(324px, calc(100% - 24px));
+  padding: 0;
+  background: rgba(255, 255, 255, 0.94);
+  border-radius: 8px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+}
+
+.toolbar-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin: 0;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #111827;
+  border: none;
+  background: #f3f4f6;
+  cursor: pointer;
+  text-align: left;
+  gap: 10px;
+}
+
+.toolbar-toggle:hover {
+  background: #e5e7eb;
+}
+
+.toolbar-toggle-chevron {
+  display: inline-block;
+  width: 0.5em;
+  height: 0.5em;
+  border-right: 2px solid #374151;
+  border-bottom: 2px solid #374151;
+  transform: rotate(45deg);
+  margin-top: -0.2em;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.toolbar--collapsed .toolbar-toggle-chevron {
+  transform: rotate(-45deg);
+  margin-top: 0.1em;
+}
+
+/* When the Map Layers menu is collapsed, the toggle reads as an orange
+   "expand" affordance: brand-orange fill, white label + chevron. */
+.toolbar--collapsed .toolbar-toggle {
+  background: var(--brand-pe-orange);
+  color: #ffffff;
+}
+
+.toolbar--collapsed .toolbar-toggle:hover {
+  background: #e64a0b;
+}
+
+.toolbar--collapsed .toolbar-toggle-chevron {
+  border-right-color: #ffffff;
+  border-bottom-color: #ffffff;
+}
+
+.toolbar-panel {
+  padding: 12px 14px 14px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.toolbar--collapsed .toolbar-panel {
+  display: none;
+}
+
+.basemap-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #e5e7eb;
+  font-size: 0.85rem;
+}
+
+.basemap-label {
+  font-weight: 500;
+  color: #374151;
+}
+
+.basemap-segmented {
+  display: inline-flex;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid #d1d5db;
+  background: #f3f4f6;
+}
+
+.basemap-segmented button {
+  margin: 0;
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 0.82rem;
+  border: none;
+  background: transparent;
+  color: #374151;
+  cursor: pointer;
+  line-height: 1.2;
+}
+
+.basemap-segmented button:hover {
+  background: #e5e7eb;
+}
+
+.basemap-segmented button.is-active {
+  background: #fff;
+  color: #111827;
+  font-weight: 600;
+  box-shadow: 0 0 0 1px #d1d5db;
+}
+
+.basemap-segmented--triple button {
+  padding: 6px 8px;
+  font-size: 0.78rem;
+  max-width: 5.75rem;
+}
+
+.layer-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.layer-section {
+  margin: 0;
+}
+
+.layer-section-title {
+  margin: 0 0 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #4b5563;
+}
+
+.layer-section-hint {
+  margin: 0 0 8px;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: #6b7280;
+}
+
+.travel-shed-menu-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#travel-shed-max-miles-row[hidden] {
+  display: none !important;
+}
+
+.travel-shed-max-miles-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 2px;
+  padding: 0 0 0 1px;
+}
+
+.travel-shed-max-miles-label {
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: #4b5563;
+}
+
+.travel-shed-max-miles-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Grey neutral slider (not app accent blue) */
+.travel-shed-max-miles-control input[type="range"] {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  height: 1.25rem;
+  cursor: pointer;
+  color: #6b7280;
+  background: transparent;
+  accent-color: #6b7280;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.travel-shed-max-miles-control input[type="range"]::-webkit-slider-runnable-track {
+  height: 0.3rem;
+  background: #d1d5db;
+  border-radius: 0.2rem;
+}
+
+.travel-shed-max-miles-control input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 0.9rem;
+  height: 0.9rem;
+  margin-top: -0.3rem;
+  background: #6b7280;
+  border-radius: 50%;
+  border: 0;
+  box-shadow: 0 0 0 1px #e5e7eb;
+  cursor: pointer;
+}
+
+.travel-shed-max-miles-control input[type="range"]::-moz-range-track {
+  height: 0.3rem;
+  background: #d1d5db;
+  border-radius: 0.2rem;
+  border: 0;
+}
+
+.travel-shed-max-miles-control input[type="range"]::-moz-range-thumb {
+  width: 0.9rem;
+  height: 0.9rem;
+  background: #6b7280;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.travel-shed-max-miles-output {
+  flex-shrink: 0;
+  min-width: 2.75rem;
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: #1f2937;
+  text-align: right;
+}
+
+.student-hex-menu-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.student-hex-menu-stack #charter-student-hex-toggles {
+  margin: 0;
+}
+
+.student-hex-menu-stack .student-hex-tooltip-row {
+  margin-top: 0;
+}
+
+.student-hex-residence-modes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+}
+
+.student-hex-residence-modes input[type="checkbox"]:disabled + span {
+  color: #9ca3af;
+}
+
+.student-hex-residence-modes--inactive {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+#charter-student-hex-toggles label {
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+
+.student-hex-tooltip-row {
+  margin-top: 6px;
+}
+
+.student-hex-tooltip-label {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 0.85rem;
+  line-height: 1.35;
+  color: inherit;
+}
+
+.student-hex-tooltip-label input[type="checkbox"] {
+  margin-top: 0.2em;
+  flex-shrink: 0;
+  accent-color: #2563eb;
+}
+
+.nontraditional-school-locations-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.nontraditional-school-locations-stack .charter-private-school-toggles-row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  gap: 12px 20px;
+  justify-content: flex-start;
+  width: 100%;
+}
+
+.nontraditional-school-locations-stack .charter-private-school-toggles-row .toggles {
+  flex: 0 1 auto;
+  min-width: min-content;
+}
+
+.toggle-nested-row--vary-enrollment {
+  padding-left: 0;
+  align-self: flex-start;
+  font-size: 0.85rem;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.toggle-nested-row--vary-enrollment .student-hex-tooltip-label {
+  white-space: nowrap;
+}
+
+.toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  font-size: 0.85rem;
+}
+
+/* Grade-band rows (Elementary / Middle / High) stay on a single line in the
+   narrower Map Layers menu: condense the column gap and trim the font ~1px so
+   the three items fit without wrapping. */
+#boundary-toggles,
+#school-toggles,
+#school-parcel-toggles {
+  flex-wrap: nowrap;
+  gap: 8px 9px;
+  font-size: 0.79rem;
+}
+
+#boundary-toggles label,
+#school-toggles label,
+#school-parcel-toggles label {
+  white-space: nowrap;
+}
+
+.toggles label {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+
+/* Align checkbox and swatch with the first text line (same as “High” + sublabel) */
+.toggles label > input[type="checkbox"] {
+  margin-top: 0.2em;
+  flex-shrink: 0;
+}
+
+.toggles label > .swatch,
+.toggles label > .toggle-gradient-strip {
+  margin-top: 0.2em;
+}
+
+.toggles input {
+  accent-color: #2563eb;
+}
+
+.swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+}
+
+/* High + Jr/Sr legend: purple (9–12) + orange (7–12) diagonal */
+.swatch--split-jr-sr {
+  background: linear-gradient(135deg, #9333ea 50%, #ea580c 50%);
+}
+
+.toggle-label-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  line-height: 1.15;
+}
+
+.toggle-label-main {
+  line-height: 1.25;
+}
+
+.toggle-label-sub {
+  font-size: 0.68rem;
+  color: #6b7280;
+  font-weight: 400;
+}
+
+.toggle-gradient-strip {
+  display: inline-block;
+  width: 52px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+  background: linear-gradient(
+    90deg,
+    rgba(127, 205, 187, 0.95) 0%,
+    rgba(65, 182, 196, 0.95) 9%,
+    rgba(99, 102, 241, 0.9) 20%,
+    rgba(168, 85, 247, 0.92) 32%,
+    rgba(197, 27, 125, 0.94) 44%,
+    rgba(220, 38, 38, 0.95) 54%,
+    rgba(234, 88, 12, 0.95) 64%,
+    rgba(249, 115, 22, 0.96) 74%,
+    rgba(251, 146, 60, 0.96) 82%,
+    rgba(253, 170, 55, 0.97) 88%,
+    rgba(255, 200, 100, 0.98) 94%,
+    rgba(255, 235, 160, 0.99) 98%,
+    rgba(255, 255, 210, 1) 100%
+  );
+}
+
+.toggle-gradient-strip--charter-magenta {
+  background: linear-gradient(
+    90deg,
+    #ffffff 0%,
+    #fcc5e7 8%,
+    #fcb9e3 18%,
+    #fcabde 30%,
+    #fd9cd8 42%,
+    #fd8ed3 54%,
+    #fe80ce 66%,
+    #fe70c8 78%,
+    #ff5cc0 88%,
+    #ff51da 95%,
+    #ff40ff 100%
+  );
+}
+
+.toggle-gradient-strip--homeschool-red {
+  background: linear-gradient(
+    90deg,
+    #ffffff 0%,
+    #fee2e2 10%,
+    #fecaca 20%,
+    #fca5a5 35%,
+    #f87171 48%,
+    #ef4444 60%,
+    #dc2626 72%,
+    #b91c1c 84%,
+    #991b1b 100%
+  );
+}
+
+/* Aligned to school-isochrones-fill 1–10 mi palette (light near → dark far). */
+.toggle-gradient-strip--travel-sheds {
+  background: linear-gradient(
+    90deg,
+    #fffbeb 0%,
+    #fef3c7 11%,
+    #fde68a 22%,
+    #fcd34d 33%,
+    #fbbf24 44%,
+    #d97706 55%,
+    #b45309 66%,
+    #92400e 77%,
+    #78350f 88%,
+    #451a03 100%
+  );
+}
+
+#map {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Bottom-right of map; above default attribution. Does not block map interaction. */
+.map-density-legend {
+  position: absolute;
+  z-index: 2;
+  right: 8px;
+  left: auto;
+  bottom: 32px;
+  max-width: min(240px, calc(100% - 100px));
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  font-family: "Franklin Gothic Book", "Franklin Gothic", "Libre Franklin", "Arial Narrow",
+    sans-serif;
+  font-size: 0.72rem;
+  line-height: 1.25;
+  color: #334155;
+  pointer-events: none;
+}
+
+.map-density-legend[hidden] {
+  display: none !important;
+}
+
+.map-density-legend__row {
+  margin-top: 8px;
+}
+
+.map-density-legend__row:first-child {
+  margin-top: 0;
+}
+
+.map-density-legend__title {
+  font-weight: 600;
+  font-size: 0.74rem;
+  margin-bottom: 4px;
+  color: #1e293b;
+}
+
+.map-density-legend__bar {
+  height: 10px;
+  width: 100%;
+  min-width: 0;
+  border-radius: 3px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+}
+
+/* Ramps align with `heatmap-color` in app.js for student-hex-heatmap and charter-student-hex-heatmap. */
+.map-density-legend__bar--student {
+  background: linear-gradient(
+    90deg,
+    rgba(34, 211, 238, 0.2) 0%,
+    rgba(56, 189, 248, 0.5) 12%,
+    rgba(98, 88, 230, 0.6) 28%,
+    rgba(147, 51, 234, 0.7) 44%,
+    rgba(219, 39, 119, 0.8) 62%,
+    rgba(234, 88, 12, 0.9) 78%,
+    rgba(255, 251, 200, 1) 100%
+  );
+}
+
+.map-density-legend__bar--charter {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(252, 197, 231, 0.45) 8%,
+    rgba(252, 171, 222, 0.65) 32%,
+    rgba(254, 128, 206, 0.82) 58%,
+    rgba(255, 92, 192, 0.9) 80%,
+    rgba(255, 64, 255, 0.94) 100%
+  );
+}
+
+.map-density-legend__bar--homeschool {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(254, 226, 226, 0.45) 10%,
+    rgba(252, 165, 165, 0.6) 28%,
+    rgba(248, 113, 113, 0.75) 48%,
+    rgba(220, 38, 38, 0.88) 72%,
+    rgba(69, 10, 10, 0.94) 100%
+  );
+}
+
+.map-density-legend__axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 3px;
+  font-size: 0.7rem;
+  color: #334155;
+  font-variant-numeric: tabular-nums;
+}
+
+.map-density-legend__val {
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.map-density-legend__val-note {
+  margin: 2px 0 0;
+  font-size: 0.6rem;
+  color: #94a3b8;
+  text-align: center;
+}
+
+.mapboxgl-ctrl {
+  font-family: "Franklin Gothic Medium", "Franklin Gothic", "ITC Franklin Gothic",
+    "Libre Franklin", "Arial Narrow", sans-serif;
+}
+
+.mapboxgl-popup-content {
+  font-size: 13px;
+  max-width: 280px;
+  line-height: 1.4;
+}
+
+.mapboxgl-popup-content .popup-school-name {
+  display: block;
+  margin-bottom: 4px;
+  font-family: "Franklin Gothic Medium", "Franklin Gothic", "ITC Franklin Gothic",
+    "Libre Franklin", "Arial Narrow", sans-serif;
+  font-weight: 600;
+}
+
+.mapboxgl-popup-content .popup-detail {
+  font-family: "Franklin Gothic Book", "Franklin Gothic", "Libre Franklin", "Arial Narrow",
+    sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.boundary-hover-popup .mapboxgl-popup-content {
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.school-board-hover-popup .mapboxgl-popup-content {
+  padding: 6px 10px;
+  line-height: 1.35;
+}
+
+.school-board-hover-popup .school-board-hover-title {
+  font-family: "Franklin Gothic Medium", "Franklin Gothic", "ITC Franklin Gothic",
+    "Libre Franklin", "Arial Narrow", sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.school-board-hover-popup .school-board-hover-member {
+  font-family: "Franklin Gothic Book", "Franklin Gothic", "Libre Franklin", "Arial Narrow",
+    sans-serif;
+  font-weight: 400;
+  font-size: 11px;
+}
+
+.school-hover-popup .mapboxgl-popup-content {
+  padding: 8px 10px;
+}
+
+.travel-shed-hover-popup .mapboxgl-popup-content {
+  padding: 6px 8px;
+  line-height: 1.3;
+  font-size: 12px;
+  color: #1f2937;
+  max-width: 430px;
+}
+
+.travel-shed-hover-popup .travel-shed-hover-inner {
+  font-family: "Franklin Gothic Book", "Franklin Gothic", "Libre Franklin", "Arial Narrow",
+    sans-serif;
+}
+
+.travel-shed-hover-title {
+  font-family: "Franklin Gothic Medium", "Franklin Gothic", "ITC Franklin Gothic", "Libre Franklin",
+    "Arial Narrow", sans-serif;
+  font-weight: 700;
+  font-size: 0.8rem;
+  line-height: 1.3;
+  margin: 0 0 6px;
+  color: #111827;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #e5e7eb;
+  /* Two-column layout: school + travel-shed phrase on the left, grades-served
+     annotation on the right (small italic). Wraps if room runs short. */
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.travel-shed-hover-title__main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.travel-shed-hover-title__grades {
+  flex: 0 0 auto;
+  font-family: "Franklin Gothic Book", "Franklin Gothic", "Libre Franklin",
+    "Arial Narrow", sans-serif;
+  font-style: italic;
+  font-weight: 400;
+  font-size: 0.7rem;
+  color: #4b5563;
+  white-space: nowrap;
+}
+
+.travel-shed-hover-title__grades strong {
+  font-weight: 700;
+  color: #111827;
+}
+
+/* Single column: header + stack of rows; no internal scroll. */
+.travel-shed-residence-grades--1col {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.78rem;
+  margin-top: 2px;
+}
+
+/* Two panes: each has its own Grade / Student Residences header. */
+.travel-shed-residence-grades--2col {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0.65rem 0.85rem;
+  font-size: 0.78rem;
+  margin-top: 2px;
+}
+
+.travel-shed-residence-pane {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.travel-shed-residence-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(3.25rem, auto);
+  align-items: baseline;
+  gap: 0.4rem 0.5rem;
+  padding: 0 0 3px;
+  margin-bottom: 2px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: #4b5563;
+  border-bottom: 1px solid #d1d5db;
+}
+
+.travel-shed-residence-h-n {
+  text-align: right;
+  font-weight: 600;
+}
+
+.travel-shed-residence-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px 0;
+}
+
+.travel-shed-residence-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(3.25rem, auto);
+  align-items: baseline;
+  gap: 0.4rem 0.5rem;
+  font-variant-numeric: tabular-nums;
+  color: #374151;
+}
+
+.travel-shed-residence-row--served {
+  color: #111827;
+}
+
+/* Grade label in served-grade rows is also bolded so the row reads with
+   parallel emphasis on both columns (grade + student-residence count). */
+.travel-shed-residence-row--served .travel-shed-residence-grade {
+  font-weight: 700;
+}
+
+.travel-shed-residence-grade {
+  min-width: 0;
+}
+
+.travel-shed-residence-n {
+  text-align: right;
+  flex: 0 0 auto;
+}
+
+.travel-shed-residence-n strong {
+  font-weight: 700;
+}
+
+.travel-shed-residence-empty {
+  margin: 0.4rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.3;
+  color: #6b7280;
+}
+
+.student-hex-hover-popup .mapboxgl-popup-content {
+  padding: 8px 10px;
+  line-height: 1.35;
+}
+
+.student-hex-hover-popup .student-hex-hover-inner {
+  font-family: "Franklin Gothic Book", "Franklin Gothic", "Libre Franklin", "Arial Narrow",
+    sans-serif;
+  font-size: 12px;
+  color: #1f2937;
+}
+
+.student-hex-hover-popup .student-hex-hover-line {
+  font-weight: 600;
+}
+
+.student-hex-hover-popup .student-hex-hover-value {
+  font-variant-numeric: tabular-nums;
+}
+
+.student-hex-hover-popup .student-hex-hover-unit {
+  font-weight: 400;
+}
+
+.student-hex-hover-popup .student-hex-hover-sub {
+  margin-top: 6px;
+  font-size: 11px;
+  font-weight: 400;
+  color: #4b5563;
+}
+
+.student-hex-hover-popup .student-hex-hover-dual {
+  min-width: 0;
+}
+
+.student-hex-hover-popup .student-hex-hover-section + .student-hex-hover-section {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.student-hex-hover-popup .student-hex-hover-section-title {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b7280;
+  margin: 0 0 4px;
+}
+
+/* ---------------------------------------------------------------------------
+   Consolidated Scenario Planning tab: sub-tab pill, scenario grade matrix,
+   boundary sandbox multi-boundary controls, summary table.
+   --------------------------------------------------------------------------- */
+
+.scenario-subtab-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 10px;
+  margin: 0 0 4px;
+}
+
+.scenario-subtab-toggle {
+  display: inline-flex;
+  align-self: center;
+  margin: 0 auto 0 0;
+  padding: 4px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  gap: 0;
+}
+
+.scenario-subtab-reset-btn {
+  appearance: none;
+  align-self: center;
+  margin: 0;
+  padding: 6px 12px;
+  font-family: inherit;
+  font-size: calc(0.78rem + 1px);
+  font-weight: 600;
+  color: #475569;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.scenario-subtab-reset-btn:hover {
+  background: #ef4444;
+  color: #ffffff;
+  border-color: #dc2626;
+}
+
+.scenario-subtab-reset-btn:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.scenario-save-share-btn {
+  appearance: none;
+  align-self: center;
+  margin: 0;
+  padding: 6px 14px;
+  font-family: inherit;
+  font-size: calc(0.78rem + 1px);
+  font-weight: 600;
+  color: #ffffff;
+  background: #2563eb;
+  border: 1px solid #1d4ed8;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease,
+    box-shadow 0.15s ease, opacity 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* "View Tutorial for this Page" — secondary-styled placeholder button.
+   Same layout/size as the share button so they read as a button group.
+   Wired up later when the tutorial flow ships. */
+.scenario-view-tutorial-btn {
+  appearance: none;
+  align-self: center;
+  margin: 0;
+  padding: 6px 14px;
+  font-family: inherit;
+  font-size: calc(0.78rem + 1px);
+  font-weight: 600;
+  color: #475569;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease,
+    color 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.scenario-view-tutorial-btn:hover,
+.scenario-view-tutorial-btn:active {
+  background: var(--brand-pe-orange);
+  border-color: var(--brand-pe-orange);
+  color: #ffffff;
+}
+
+.scenario-view-tutorial-btn:focus-visible {
+  outline: 2px solid var(--brand-pe-orange);
+  outline-offset: 2px;
+}
+
+.scenario-view-tutorial-btn[disabled],
+.scenario-view-tutorial-btn.is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.scenario-save-share-btn:hover {
+  background: #10b981;
+  border-color: #059669;
+  color: #ffffff;
+}
+
+.scenario-save-share-btn:focus-visible {
+  outline: 2px solid #1d4ed8;
+  outline-offset: 2px;
+}
+
+.scenario-save-share-btn[disabled],
+.scenario-save-share-btn.is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* ---------------------------------------------------------------------------
+   Save and Share modal dialog.
+   --------------------------------------------------------------------------- */
+
+.share-scenario-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 10000;
+  animation: shareScenarioFadeIn 0.18s ease-out both;
+}
+
+.share-scenario-overlay[hidden] {
+  display: none;
+}
+
+@keyframes shareScenarioFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.share-scenario-card {
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 24px 60px -20px rgba(15, 23, 42, 0.4),
+    0 8px 24px -12px rgba(15, 23, 42, 0.25);
+  width: 100%;
+  max-width: 560px;
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: shareScenarioCardIn 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes shareScenarioCardIn {
+  from { transform: translateY(8px) scale(0.985); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+.share-scenario-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.share-scenario-card-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: 0.01em;
+}
+
+.share-scenario-close-btn {
+  appearance: none;
+  background: transparent;
+  border: none;
+  color: #475569;
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.share-scenario-close-btn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.share-scenario-close-btn:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.share-scenario-card-body {
+  padding: 16px 20px 8px;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.share-scenario-helper {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #475569;
+  line-height: 1.45;
+}
+
+.share-scenario-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.share-scenario-field-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #0f172a;
+  letter-spacing: 0.01em;
+}
+
+.share-scenario-field-hint {
+  font-size: 0.72rem;
+  color: #64748b;
+  font-weight: 400;
+}
+
+.share-scenario-input,
+.share-scenario-textarea {
+  appearance: none;
+  width: 100%;
+  padding: 7px 10px;
+  font: inherit;
+  font-size: 0.86rem;
+  color: #0f172a;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  box-sizing: border-box;
+}
+
+.share-scenario-input:focus,
+.share-scenario-textarea:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+}
+
+.share-scenario-textarea {
+  font-family: inherit;
+  resize: vertical;
+  min-height: 76px;
+}
+
+.share-scenario-field--checkbox {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 0;
+}
+
+.share-scenario-checkbox-input {
+  margin-top: 3px;
+  flex: 0 0 auto;
+}
+
+.share-scenario-field--checkbox > span {
+  font-size: 0.84rem;
+  color: #0f172a;
+  line-height: 1.4;
+}
+
+.share-scenario-district-email {
+  display: block;
+  font-size: 0.74rem;
+  color: #64748b;
+  font-weight: 500;
+  margin-top: 2px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.share-scenario-preview {
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #f8fafc;
+  font-size: 0.78rem;
+  color: #334155;
+  padding: 0;
+  overflow: hidden;
+}
+
+.share-scenario-preview > summary {
+  cursor: pointer;
+  padding: 7px 10px;
+  font-weight: 600;
+  color: #1e293b;
+  font-size: 0.78rem;
+  list-style: none;
+}
+
+.share-scenario-preview > summary::-webkit-details-marker {
+  display: none;
+}
+
+.share-scenario-preview > summary::before {
+  content: "▸ ";
+  color: #64748b;
+  display: inline-block;
+  margin-right: 4px;
+  transition: transform 0.15s ease;
+}
+
+.share-scenario-preview[open] > summary::before {
+  content: "▾ ";
+}
+
+.share-scenario-preview-pre {
+  margin: 0;
+  padding: 10px 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.74rem;
+  color: #1e293b;
+  background: #ffffff;
+  border-top: 1px solid #e2e8f0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.share-scenario-status {
+  margin: 0;
+  min-height: 1.2em;
+  font-size: 0.78rem;
+  color: #475569;
+}
+
+.share-scenario-status.is-error {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+.share-scenario-status.is-success {
+  color: #047857;
+  font-weight: 600;
+}
+
+.share-scenario-card-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px 16px;
+  border-top: 1px solid #e2e8f0;
+  background: #ffffff;
+}
+
+.share-scenario-foot-spacer {
+  flex: 1 1 auto;
+}
+
+.share-scenario-primary-btn,
+.share-scenario-secondary-btn,
+.share-scenario-cancel-btn {
+  appearance: none;
+  border: 1px solid transparent;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.share-scenario-primary-btn {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #1d4ed8;
+}
+
+.share-scenario-primary-btn:hover:not([disabled]) {
+  background: #1d4ed8;
+  border-color: #1e40af;
+}
+
+.share-scenario-primary-btn:focus-visible {
+  outline: 2px solid #1d4ed8;
+  outline-offset: 2px;
+}
+
+.share-scenario-primary-btn[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.share-scenario-secondary-btn {
+  background: #ffffff;
+  color: #1e293b;
+  border-color: #cbd5e1;
+}
+
+.share-scenario-secondary-btn:hover:not([disabled]) {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.share-scenario-secondary-btn:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.share-scenario-secondary-btn[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.share-scenario-cancel-btn {
+  background: transparent;
+  color: #475569;
+  border-color: transparent;
+}
+
+.share-scenario-cancel-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.share-scenario-cancel-btn:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+@media (max-width: 520px) {
+  .share-scenario-card-foot {
+    flex-wrap: wrap;
+  }
+  .share-scenario-foot-spacer {
+    flex-basis: 100%;
+    order: 0;
+  }
+}
+
+.scenario-subtab-btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: #475569;
+  font-family: inherit;
+  font-size: calc(0.84rem + 1px);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  padding: 7px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.scenario-subtab-btn:hover:not(.is-active) {
+  color: #1e293b;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.scenario-subtab-btn.is-active {
+  color: #0f172a;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08), 0 1px 4px rgba(15, 23, 42, 0.06);
+}
+
+.scenario-subtab-btn:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.scenario-subpanel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.scenario-subpanel[hidden] {
+  display: none;
+}
+
+.scenario-reset-btn {
+  align-self: flex-start;
+  margin: 6px 0 0;
+  padding: 6px 12px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #475569;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.scenario-reset-btn:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+  border-color: #94a3b8;
+}
+
+.scenario-toggle-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.scenario-toggle-row .scenario-feeder-chain-row,
+.scenario-toggle-row .scenario-merger-control {
+  margin-top: 0;
+  flex: 1 1 240px;
+}
+
+/* Match the visual treatment of `.scenario-merger-control` exactly so the two
+   sibling toggles look the same when placed side-by-side in `.scenario-toggle-row`. */
+.scenario-feeder-chain-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 12px;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+}
+
+.scenario-feeder-chain-row > .info-tip {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.scenario-feeder-chain-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  flex: 1 1 auto;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: #374151;
+  cursor: pointer;
+}
+
+.scenario-feeder-chain-label input[type="checkbox"] {
+  margin-top: 0.2em;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+/* Per-school grade chips embedded in the contributing-schools list.
+   The left padding aligns the first chip vertically with the school name above
+   (which starts after the color swatch + checkbox column in the label). */
+.scenario-feeder-grade-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 0;
+  padding-left: 44px;
+}
+
+.scenario-feeder-grade-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  font-family: "Franklin Gothic Book", "Franklin Gothic", "Libre Franklin",
+    "Arial Narrow", sans-serif;
+  font-size: 0.74rem;
+  font-weight: 500;
+  color: #475569;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.scenario-feeder-grade-chip input[type="checkbox"] {
+  width: 12px;
+  height: 12px;
+  margin: 0;
+  accent-color: #4338ca;
+}
+
+.scenario-feeder-grade-chip.is-off {
+  color: #6b7280;
+  background: #f3f4f6;
+  border-color: #e5e7eb;
+  text-decoration: line-through;
+}
+
+.scenario-feeder-grade-chip.is-locked {
+  cursor: not-allowed;
+  background: #d1fae5;
+  border-color: #6ee7b7;
+  color: #065f46;
+}
+
+.scenario-feeder-base-flag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #ffffff;
+  background: #1d4ed8;
+  border-radius: 999px;
+  vertical-align: middle;
+}
+
+/* Boundary sandbox: boundaries-panel + per-boundary rows */
+.sandbox-boundaries-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.sandbox-boundaries-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.sandbox-boundaries-count {
+  margin-left: auto;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.sandbox-boundaries-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sandbox-boundary-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.sandbox-boundary-row:hover:not(.is-active) {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+/* Active row is highlighted in its own boundary color (set via the
+   --bnd-accent / --bnd-tint / --bnd-glow custom properties in app.js). */
+.sandbox-boundary-row.is-active {
+  border-color: var(--bnd-accent, #1d4ed8);
+  background: var(--bnd-tint, #eff6ff);
+  box-shadow: inset 4px 0 0 0 var(--bnd-accent, #1d4ed8),
+    0 0 0 2px var(--bnd-glow, rgba(29, 78, 216, 0.15));
+}
+
+.sandbox-boundary-row__swatch {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(15, 23, 42, 0.2);
+  flex-shrink: 0;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.sandbox-boundary-row__swatch:focus-visible {
+  outline: 2px solid var(--bnd-accent, #1d4ed8);
+  outline-offset: 2px;
+}
+
+.sandbox-boundary-row__body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.sandbox-boundary-row__name {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #0f172a;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 2px 6px;
+  width: 100%;
+  min-width: 0;
+  font-family: inherit;
+}
+
+.sandbox-boundary-row__name:hover:not(:focus) {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+.sandbox-boundary-row__name:focus {
+  outline: none;
+  background: #ffffff;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.18);
+}
+
+.sandbox-boundary-row__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+.sandbox-boundary-row__base-select {
+  flex: 1;
+  min-width: 110px;
+  font-size: 0.74rem;
+  padding: 3px 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #1f2937;
+  font-family: inherit;
+}
+
+.sandbox-boundary-row__hex-count {
+  font-weight: 600;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+}
+
+.sandbox-boundary-row__delete {
+  appearance: none;
+  background: transparent;
+  border: 1px solid transparent;
+  color: #ef4444;
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 2px 7px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.sandbox-boundary-row__delete:hover {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.sandbox-add-boundary-btn {
+  align-self: flex-start;
+  padding: 6px 12px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #1d4ed8;
+  background: #ffffff;
+  border: 1px dashed #93c5fd;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.sandbox-add-boundary-btn:hover:not(:disabled) {
+  background: #eff6ff;
+  border-color: #2563eb;
+  color: #1e3a8a;
+}
+
+.sandbox-add-boundary-btn:disabled {
+  color: #94a3b8;
+  border-color: #e2e8f0;
+  cursor: not-allowed;
+}
+
+#sandbox-overlap-notice {
+  margin: 4px 0 0;
+  color: #b45309;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+}
+
+/* Per-boundary grade-toggle list inside the boundary row.
+   Spans columns 3..-1 so the leftmost chip aligns vertically with the
+   left edge of the base-school dropdown (also in column 3 of the row). */
+.sandbox-boundary-row__grades-wrap {
+  grid-column: 2 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.sandbox-boundary-row__grade-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 0;
+}
+
+.sandbox-boundary-row__grade-chip[data-conflict="true"] {
+  outline: 1px solid #dc2626;
+  background: #fef2f2;
+}
+
+.sandbox-boundary-row__grade-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #1e293b;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.sandbox-boundary-row__grade-chip.is-off {
+  color: #6b7280;
+  background: #f3f4f6;
+  border-color: #e5e7eb;
+  text-decoration: line-through;
+}
+
+.sandbox-boundary-row__grade-chip input[type="checkbox"] {
+  width: 11px;
+  height: 11px;
+  margin: 0;
+  accent-color: #4338ca;
+}
+
+.sandbox-boundary-row__copy-grades {
+  align-self: flex-start;
+  padding: 3px 8px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #1d4ed8;
+  background: #ffffff;
+  border: 1px solid #c7d2fe;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.sandbox-boundary-row__copy-grades:hover {
+  background: #eff6ff;
+}
+
+/* Summary table at bottom of sandbox sub-tab */
+.sandbox-summary-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.sandbox-summary-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.sandbox-summary-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.8rem;
+}
+
+.sandbox-summary-table th,
+.sandbox-summary-table td {
+  padding: 6px 9px;
+  border-bottom: 1px solid #f1f5f9;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: #1f2937;
+}
+
+.sandbox-summary-table th:first-child,
+.sandbox-summary-table td:first-child {
+  text-align: left;
+  font-weight: 600;
+  color: #0f172a;
+  position: sticky;
+  left: 0;
+  background: #ffffff;
+}
+
+.sandbox-summary-table thead th {
+  background: #f8fafc;
+  font-weight: 700;
+  font-size: 0.74rem;
+  color: #0f172a;
+  border-bottom: 2px solid #cbd5e1;
+}
+
+.sandbox-summary-table thead th .sandbox-summary-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  margin-right: 5px;
+  vertical-align: middle;
+  border: 1.5px solid rgba(15, 23, 42, 0.2);
+}
+
+.sandbox-summary-table tr.sandbox-summary-row--totals td,
+.sandbox-summary-table tr.sandbox-summary-row--totals th {
+  border-top: 2px solid #cbd5e1;
+  font-weight: 700;
+  background: #f8fafc;
+}
+
+.sandbox-summary-table tr.sandbox-summary-row--capacity td {
+  color: #475569;
+  background: #fafafa;
+}
+
+.sandbox-summary-table tr.sandbox-summary-row--utilization td {
+  font-weight: 700;
+  color: #0f172a;
+  background: #fafafa;
+}
+
+/* Scenario: chart + grade-summary side-by-side layout */
+.scenario-enrollment-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.scenario-enrollment-row > #scenario-enrollment-chart {
+  flex: 1 1 360px;
+  min-width: 0;
+}
+
+.scenario-grade-summary {
+  flex: 0 0 260px;
+  max-width: 320px;
+  margin: 0;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+}
+
+.scenario-grade-summary-heading {
+  margin: 0 0 8px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #334155;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.scenario-grade-summary-heading #scenario-grade-summary-year {
+  color: #1d4ed8;
+}
+
+.scenario-stack-seg {
+  transition: opacity 0.15s ease, stroke 0.15s ease, stroke-width 0.15s ease;
+}
+
+.scenario-stack-seg.is-bar-hover {
+  opacity: 0.85;
+}
+
+.scenario-stack-seg.is-bar-locked {
+  stroke: #0f172a;
+  stroke-width: 2.25;
+}
+
+.scenario-grade-summary-table-wrap {
+  overflow-x: auto;
+}
+
+.scenario-grade-summary-empty {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #6b7280;
+  font-style: italic;
+}
+
+.scenario-grade-summary-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.scenario-grade-summary-table th,
+.scenario-grade-summary-table td {
+  padding: 4px 8px;
+  font-size: 0.78rem;
+  text-align: right;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.scenario-grade-summary-table th:first-child,
+.scenario-grade-summary-table td:first-child {
+  text-align: left;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.scenario-grade-summary-table thead th {
+  background: transparent;
+  font-weight: 700;
+  color: #0f172a;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  border-bottom: 2px solid #cbd5e1;
+}
+
+.scenario-grade-summary-table tr.scenario-grade-summary-row--total td,
+.scenario-grade-summary-table tr.scenario-grade-summary-row--total th {
+  border-top: 2px solid #cbd5e1;
+  border-bottom: none;
+  font-weight: 700;
+  background: transparent;
+  color: #0f172a;
+}
+
+/* ===========================================================================
+   Phone-only layout (smartphones with a touch pointer; tablets keep the
+   stacked >=541px layout). The map fills the screen. A swipe-up bottom sheet
+   (.mobile-layers-sheet) exposes ONLY the Map Layers menu. The floating Map/Data
+   toggle (.mobile-view-toggle) switches between the map and a separate
+   full-screen Data view (the desktop left panel) — the Data view is never part
+   of the sheet, and Map Layers is never part of the Data view. These injected
+   elements are hidden everywhere except this phone breakpoint.
+   =========================================================================== */
+.mobile-drawer-header,
+.mobile-view-toggle,
+.mobile-layers-sheet,
+.mobile-sandbox-tools {
+  display: none;
+}
+
+@media (max-width: 540px) and (pointer: coarse) {
+  .dashboard {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    max-height: 100vh;
+    max-height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .dashboard-resizer {
+    display: none !important;
+  }
+
+  /* Map fills the entire viewport. */
+  .dashboard-map-wrap {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    flex: none !important;
+  }
+
+  /* Full-screen Data view (the desktop left panel). Slides up off-screen until
+     the Data pill is selected; carries no sheet handle and no Map Layers menu. */
+  .dashboard-sidebar {
+    position: absolute;
+    inset: 0;
+    width: 100% !important;
+    min-width: 0;
+    height: 100%;
+    max-height: none;
+    flex: none !important;
+    z-index: 6;
+    margin: 0;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    background: #fff;
+    padding: 12px 16px 24px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    transform: translateY(100%);
+    transition: transform 0.3s cubic-bezier(0.22, 0.61, 0.36, 1);
+    will-change: transform;
+  }
+
+  .dashboard.mobile-data-view .dashboard-sidebar {
+    transform: translateY(0);
+  }
+
+  /* Map Layers bottom sheet: swipe up from the map. Holds only the relocated
+     map-layers menu — collapsed by default with just the handle peeking. */
+  .mobile-layers-sheet {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    max-height: 82vh;
+    max-height: 82dvh;
+    background: #fff;
+    border-top-left-radius: 16px;
+    border-top-right-radius: 16px;
+    box-shadow: 0 -6px 24px rgba(15, 23, 42, 0.2);
+    overflow: hidden;
+    --drawer-peek: 56px;
+    transform: translateY(calc(100% - var(--drawer-peek)));
+    transition: transform 0.3s cubic-bezier(0.22, 0.61, 0.36, 1);
+    will-change: transform;
+  }
+
+  .dashboard.mobile-map-layers-open .mobile-layers-sheet {
+    transform: translateY(0);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* When the Data view is showing, tuck the layers sheet away entirely. */
+  .dashboard.mobile-data-view .mobile-layers-sheet {
+    transform: translateY(100%);
+  }
+
+  .dashboard.mobile-drawer-dragging .mobile-layers-sheet {
+    transition: none;
+  }
+
+  /* Sticky grab handle + label at the top of the sheet. */
+  .mobile-drawer-header {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 12px;
+    background: #fff;
+    border-top-left-radius: 16px;
+    border-top-right-radius: 16px;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    cursor: grab;
+  }
+
+  .dashboard.mobile-drawer-dragging .mobile-drawer-header {
+    cursor: grabbing;
+  }
+
+  .mobile-drawer-handle {
+    width: 42px;
+    height: 5px;
+    padding: 0;
+    border: none;
+    border-radius: 999px;
+    background: #cbd5e1;
+    cursor: grab;
+  }
+
+  .mobile-drawer-title {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #0f172a;
+  }
+
+  /* Map-layers menu inside the sheet: full-width, no floating chrome. The sheet
+     handle is the open/close affordance, so hide the panel's own toggle and
+     always show its contents. */
+  .mobile-layers-sheet .toolbar {
+    position: static;
+    inset: auto;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    background: #fff;
+    overflow: visible;
+  }
+
+  .mobile-layers-sheet .toolbar-toggle {
+    display: none;
+  }
+
+  .mobile-layers-sheet .toolbar-panel {
+    display: block !important;
+    border-top: none;
+  }
+
+  /* Floating Map/Data toggle in the top-right corner, above everything. */
+  .mobile-view-toggle {
+    display: inline-flex;
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 8;
+    padding: 3px;
+    gap: 3px;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 999px;
+    box-shadow: 0 2px 12px rgba(15, 23, 42, 0.18);
+  }
+
+  .mobile-view-toggle__btn {
+    padding: 7px 16px;
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #475569;
+    cursor: pointer;
+  }
+
+  .mobile-view-toggle__btn[aria-selected="true"] {
+    background: #1d4ed8;
+    color: #fff;
+  }
+
+  /* Data view: the top nav buttons form a 2x2 grid to save room:
+       View Tutorial      | Existing Conditions
+       Scenario Planning  | Share your Feedback
+     `display: contents` flattens the journey wrappers so the tutorial button
+     and the three journey buttons all become cells of one grid, in DOM order. */
+  .sidebar-top-bar__row.sidebar-top-bar__row--switcher {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    align-items: stretch;
+  }
+
+  .page-journey,
+  .page-journey__track,
+  .page-journey__item {
+    display: contents;
+  }
+
+  .page-journey__connector {
+    display: none;
+  }
+
+  .view-tutorial-btn,
+  .page-journey__btn {
+    width: 100%;
+  }
+
+  .page-journey__label {
+    display: block;
+    overflow: visible;
+    white-space: normal;
+  }
+
+  /* Move the "Developed for ... by Perkins Eastman" credits to the top, in line
+     with the floating Map/Data pill and above the page title. The credits stay
+     on a single line; it's fine for the pill to overlap the right of the PE
+     logo (the pill renders above the credits). */
+  .sidebar-top-bar__row--heading {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  .sidebar-credits {
+    order: -1;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    align-items: center;
+    margin-left: 0;
+  }
+
+  /* Title + view subtitle flow as normal inline text (the subtitle sits right
+     after the title). `flex: 0 0 auto` overrides the desktop `flex: 1 1 12rem`,
+     whose 12rem basis became a tall HEIGHT once the heading row went vertical —
+     the source of the big empty gap above the nav buttons. */
+  .sidebar-brand-line {
+    display: block;
+    flex: 0 0 auto;
+  }
+
+  .sidebar-brand-view {
+    display: inline;
+  }
+
+  /* Shrink the Perkins Eastman logo by 25% on phones. */
+  .sidebar-credits__logo--pe {
+    height: calc(var(--sidebar-header-asset-height) * 0.75);
+  }
+
+  /* Enrollment-over-time charts: scale to fit the phone width instead of forcing
+     a fixed min-width that triggers a horizontal scrollbar. The SVGs carry a
+     viewBox, so width:100% keeps them readable and proportional. */
+  .enrollment-chart,
+  .scenario-enrollment-chart-wrap {
+    overflow-x: hidden;
+  }
+
+  .enrollment-chart svg,
+  .scenario-enrollment-svg {
+    min-width: 0 !important;
+    width: 100%;
+    height: auto;
+  }
+
+  /* Feeder ("contributing schools") table: two columns per school. The name
+     spans the top; the left column stacks the stats (enrollment, grade,
+     remaining, utilization) with inline labels; the right column holds the
+     grade toggles. Left column is a bit wider (~60/40). */
+  .scenario-feeder-heading-metrics {
+    display: none;
+  }
+
+  .scenario-feeder-item {
+    grid-template-columns: 3fr 2fr;
+    grid-template-areas:
+      "label label"
+      "metrics chips";
+    column-gap: 12px;
+    row-gap: 6px;
+    align-items: start;
+  }
+
+  /* Enrollment moves into the left column, so drop the name parenthetical. */
+  .scenario-feeder-name__paren {
+    display: none;
+  }
+
+  .scenario-feeder-enroll {
+    display: inline;
+  }
+
+  .scenario-feeder-item-metrics {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    gap: 2px;
+    margin-left: 0;
+    font-size: 0.78rem;
+  }
+
+  /* Consistent, left-justified font for every stat line (overrides the desktop
+     fixed widths / right alignment / mixed fonts). */
+  .scenario-feeder-item-metrics > span {
+    width: auto;
+    text-align: left;
+    white-space: normal;
+    font-family: "Franklin Gothic Book", "Franklin Gothic", "Libre Franklin",
+      "Arial Narrow", sans-serif;
+    font-weight: 500;
+    font-size: 0.78rem;
+    line-height: 1.35;
+    color: #1f2937;
+  }
+
+  .scenario-feeder-item-metrics > span::before {
+    font-weight: 600;
+    color: #475569;
+  }
+
+  .scenario-feeder-enroll::before {
+    content: "2025-26 enrollment: ";
+  }
+
+  .scenario-feeder-grade::before {
+    content: "2025 grade: ";
+  }
+
+  .scenario-feeder-remaining::before {
+    content: "Remaining: ";
+  }
+
+  .scenario-feeder-util-change::before {
+    content: "Utilization: ";
+  }
+
+  .scenario-feeder-item > .scenario-feeder-grade-chips {
+    justify-self: stretch;
+    align-self: start;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 5px;
+    padding-left: 0;
+  }
+
+  /* Boundary Sandbox drawing tools: floating bar pinned to the bottom of the
+     map, just above the Map Layers sheet. Shown in the map view ONLY while the
+     Boundary Sandbox sub-tab is the active data view; hidden in the data view
+     and on every other tab. */
+  .mobile-sandbox-tools {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    bottom: calc(var(--drawer-peek, 48px) + 10px);
+    z-index: 4;
+    padding: 8px 10px;
+    background: rgba(255, 255, 255, 0.96);
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(15, 23, 42, 0.18);
+  }
+
+  .dashboard.mobile-sandbox-active:not(.mobile-data-view) .mobile-sandbox-tools {
+    display: block;
+  }
+
+  .mobile-sandbox-tools .sandbox-controls {
+    gap: 6px;
+  }
+
+  .mobile-sandbox-tools .sandbox-hex-tool-fieldset {
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+  }
+
+  .mobile-sandbox-tools .sandbox-hex-tool-legend {
+    display: none;
+  }
+
+  .mobile-sandbox-tools .sandbox-hex-count {
+    margin: 0;
+    font-size: 0.72rem;
+  }
+
+  /* Pan vs. Draw segmented control at the top of the sandbox tools bar. */
+  .mobile-pan-draw {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 8px;
+    padding: 3px;
+    background: #eef2f7;
+    border: 1px solid #dbe3ec;
+    border-radius: 999px;
+  }
+
+  .mobile-pan-draw__btn {
+    flex: 1 1 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 7px 10px;
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    color: #475569;
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
+  }
+
+  .mobile-pan-draw__btn svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+  }
+
+  .mobile-pan-draw__btn.is-active {
+    background: #fff;
+    color: #0f172a;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.16);
+  }
+
+  .mobile-pan-draw__btn:last-child.is-active {
+    color: var(--brand-pe-orange, #ff520d);
+  }
+
+  .mobile-pan-draw__btn:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: 2px;
+  }
+
+  /* Phones keep the scenario controls wrapping (forced single-line is a
+     desktop-only layout). */
+  .scenario-subtab-row {
+    flex-wrap: wrap;
+  }
+}
