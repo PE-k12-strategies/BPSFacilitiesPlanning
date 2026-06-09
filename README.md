@@ -20,6 +20,14 @@ Source files were copied from the project working folder into `geo/`:
 
 To refresh data, replace those files (same names) or edit the paths in `app.js` (`DATA`).
 
+## Private source data
+
+Raw Excel workbooks, feeder-plan source docs, and MSID lookup files live in a **separate private repo**:
+
+https://github.com/PE-k12-strategies/BPSFacilitiesPlanning-Public_PrivateData
+
+Clone it alongside this project and copy files into `data/raw/`, `data/sourcedocs/`, and the project root (`MSID_Lookup.*`) before running data scripts. See that repo's README for details.
+
 ## Optional legacy scripts
 
 The `scripts/` folder still contains Python helpers used by an older workflow; they are not required to run this map.
