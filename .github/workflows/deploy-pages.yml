@@ -6,7 +6,9 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
 
 concurrency:
   group: pages
@@ -15,6 +17,9 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout dashboard
         uses: actions/checkout@v4
@@ -32,6 +37,7 @@ jobs:
       - name: Fetch school_master.csv from private repo
         env:
           TOKEN: ${{ secrets.PRIVATE_DATA_PAT }}
+        continue-on-error: true
         run: |
           mkdir -p data
           if [ -z "$TOKEN" ]; then
@@ -48,17 +54,14 @@ jobs:
       - name: Prepare Pages site
         run: touch .nojekyll
 
-      - name: Deploy to gh-pages branch
-        uses: peaceiris/actions-gh-pages@v4
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_branch: gh-pages
-          publish_dir: .
-          exclude_assets: |
-            .github
-            scripts
-            data/raw
-            data/sourcedocs
-            MSID_Lookup.csv
-            MSID_Lookup.xlsx
-            config.local.js.example
+          path: .
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
