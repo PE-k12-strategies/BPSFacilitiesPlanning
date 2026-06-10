@@ -39,7 +39,7 @@ The live site at https://pe-k12-strategies.github.io/BPSFacilitiesPlanning/ is b
 | `MAPBOX_ACCESS_TOKEN` | Mapbox public token (`pk.…`) for the basemap |
 | `PRIVATE_DATA_PAT` | Optional PAT with read access to the private data repo; omit if org allows `GITHUB_TOKEN` to read sibling private repos |
 
-**Pages source:** set to **GitHub Actions** (Settings → Pages → Build and deployment).
+**Pages source:** set to **GitHub Actions** (Settings → Pages → Build and deployment). After adding secrets, push to `main` or re-run the workflow under Actions.
 
 ## Optional legacy scripts
 
