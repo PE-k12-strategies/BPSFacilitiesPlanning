@@ -923,19 +923,21 @@ body.dashboard-unlocked {
 }
 
 /* "Open survey in a new tab" link, styled as a brand-orange button. */
+/* Now lives in the panel header row (top-right). Blue to match the Scenario
+   Planning "Save and Share Scenario" button. */
 .feedback-open-external-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  align-self: flex-start;
-  margin: 0 0 12px;
+  align-self: center;
+  margin: 0;
   padding: 8px 14px;
   font: inherit;
   font-size: 0.85rem;
   font-weight: 600;
   color: #fff;
-  background: var(--brand-pe-orange);
-  border: none;
+  background: #2563eb;
+  border: 1px solid #1d4ed8;
   border-radius: 6px;
   text-decoration: none;
   cursor: pointer;
@@ -943,8 +945,26 @@ body.dashboard-unlocked {
 }
 
 .feedback-open-external-btn:hover {
-  background: #e64a0c;
+  background: #1d4ed8;
+  border-color: #1e40af;
   color: #fff;
+}
+
+/* Tutorial button + "Open survey" grouped at the top-right of the Feedback
+   header, with the tutorial button to the left of the survey button. Stretch
+   so the survey button matches the (taller) tutorial button's height. */
+.feedback-howto-actions {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  flex: 0 0 auto;
+  align-self: center;
+}
+
+.feedback-howto-actions .feedback-open-external-btn {
+  align-self: stretch;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 .feedback-open-external-btn:focus-visible {
@@ -1761,6 +1781,52 @@ body.dashboard-unlocked {
   border-radius: 6px;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
+}
+
+/* "How to use" box + a tutorial button side by side. Aligned to the top so that
+   when the how-to box is collapsed the box and the button sit on one line. */
+.panel-howto-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.panel-howto-row > .panel-howto {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.panel-howto-row--feedback {
+  margin-bottom: 8px;
+}
+
+.panel-howto-row--feedback .feedback-panel__heading {
+  margin: 0;
+  align-self: center;
+}
+
+.panel-howto-row .panel-howto-tutorial-btn {
+  flex: 0 0 auto;
+  align-self: flex-start;
+}
+
+/* Existing Conditions: center the label, and (while the "How to use" box is
+   collapsed) stretch the button to exactly the band's height. When the box is
+   expanded the button falls back to its natural height, top-aligned. */
+.panel-howto-row:not(.panel-howto-row--feedback) .panel-howto-tutorial-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.panel-howto-row:not(.panel-howto-row--feedback):has(.panel-howto:not([open]))
+  .panel-howto-tutorial-btn {
+  align-self: stretch;
+}
+
+.panel-howto-row--feedback .panel-howto-tutorial-btn {
+  align-self: center;
 }
 
 .panel-howto__title {
@@ -4136,20 +4202,19 @@ button.sandbox-school-expand:hover {
   );
 }
 
-/* Aligned to school-isochrones-fill 1–10 mi palette (light near → dark far). */
+/* Travel sheds use distinct hues (not a continuous ramp), so the legend shows
+   four discrete color blocks: pale yellow, medium yellow, deeper gold, brown. */
 .toggle-gradient-strip--travel-sheds {
   background: linear-gradient(
     90deg,
-    #fffbeb 0%,
-    #fef3c7 11%,
-    #fde68a 22%,
-    #fcd34d 33%,
-    #fbbf24 44%,
-    #d97706 55%,
-    #b45309 66%,
-    #92400e 77%,
-    #78350f 88%,
-    #451a03 100%
+    #fef3c7 0%,
+    #fef3c7 25%,
+    #fcd34d 25%,
+    #fcd34d 50%,
+    #d97706 50%,
+    #d97706 75%,
+    #78350f 75%,
+    #78350f 100%
   );
 }
 
@@ -4185,12 +4250,74 @@ button.sandbox-school-expand:hover {
   display: none !important;
 }
 
+/* Header strip with collapse control. The legend itself ignores pointer events
+   (so it never blocks the map), but the header/button re-enable them so the
+   user can collapse it to uncover whatever is underneath. */
+.map-density-legend__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  pointer-events: auto;
+}
+
+.map-density-legend__heading {
+  font-weight: 700;
+  font-size: 0.74rem;
+  color: #1e293b;
+}
+
+.map-density-legend__collapse {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin: -2px -2px -2px 0;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #475569;
+  cursor: pointer;
+}
+
+.map-density-legend__collapse:hover {
+  background: rgba(15, 23, 42, 0.06);
+  color: #0f172a;
+}
+
+.map-density-legend__collapse:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
+
+.map-density-legend__caret {
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform 0.15s ease;
+}
+
+/* Collapsed: caret points right and the scale rows are hidden, leaving only
+   the slim header bar. */
+.map-density-legend.is-collapsed .map-density-legend__caret {
+  transform: translateX(-1px) rotate(-45deg);
+}
+
+.map-density-legend.is-collapsed .map-density-legend__row {
+  display: none !important;
+}
+
 .map-density-legend__row {
   margin-top: 8px;
 }
 
 .map-density-legend__row:first-child {
-  margin-top: 0;
+  margin-top: 8px;
 }
 
 .map-density-legend__title {

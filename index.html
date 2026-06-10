@@ -368,27 +368,38 @@
           role="tabpanel"
           aria-labelledby="sidebar-brand-main sidebar-view-title"
         >
-          <details
-            class="panel-howto"
-            aria-label="Existing Conditions instructions"
-            open
-          >
-            <summary class="panel-howto__title">How to use<span class="panel-howto__hint">(click to collapse)</span></summary>
-            <ul class="panel-howto__list">
-              <li>
-                See today’s state of each school: enrollment, capacity, utilization,
-                demographics, and where its students come from.
-              </li>
-              <li>
-                Pick a school from the dropdown below to load its profile and center the
-                school location on the map.
-              </li>
-              <li>
-                In the map menu, toggle layers on or off (school locations, assignment
-                boundaries, travel sheds, and more) to compare context across the district.
-              </li>
-            </ul>
-          </details>
+          <div class="panel-howto-row">
+            <details
+              class="panel-howto"
+              aria-label="Existing Conditions instructions"
+              open
+            >
+              <summary class="panel-howto__title">How to use<span class="panel-howto__hint">(click to collapse)</span></summary>
+              <ul class="panel-howto__list">
+                <li>
+                  See today’s state of each school: enrollment, capacity, utilization,
+                  demographics, and where its students come from.
+                </li>
+                <li>
+                  Pick a school from the dropdown below to load its profile and center the
+                  school location on the map.
+                </li>
+                <li>
+                  In the map menu, toggle layers on or off (school locations, assignment
+                  boundaries, travel sheds, and more) to compare context across the district.
+                </li>
+              </ul>
+            </details>
+            <button
+              type="button"
+              id="existing-view-tutorial-btn"
+              class="scenario-view-tutorial-btn panel-howto-tutorial-btn"
+              title="Watch a video guide for this page (coming soon)."
+              aria-label="View video tutorial for this page (placeholder)"
+            >
+              View Video Tutorial for this Page
+            </button>
+          </div>
 
           <div class="dashboard-controls">
             <label class="visually-hidden" for="school-select">Select a school</label>
@@ -964,8 +975,8 @@
                 Choose a <strong>base school</strong> (optional), and/or use the
                 <strong>map tools</strong> below to click and drag areas on the map
                 to add or erase them from your boundary. Each small hexagon is a
-                neighborhood-sized area where one or multiple students live. We group
-                the data this way to protect student privacy.
+                neighborhood-sized area (0.25mi wide, ~25 acres) where one or multiple
+                students live. We group the data this way to protect student privacy.
               </li>
               <li>
                 Pick which <strong>grade levels</strong> each boundary covers. For
@@ -1228,21 +1239,34 @@
           hidden
         >
           <section class="feedback-panel" aria-labelledby="feedback-panel-heading">
-            <h2 class="feedback-panel__heading" id="feedback-panel-heading">
-              Share your Feedback
-            </h2>
+            <div class="panel-howto-row panel-howto-row--feedback">
+              <h2 class="feedback-panel__heading" id="feedback-panel-heading">
+                Share your Feedback
+              </h2>
+              <div class="feedback-howto-actions">
+                <button
+                  type="button"
+                  id="feedback-view-tutorial-btn"
+                  class="scenario-view-tutorial-btn panel-howto-tutorial-btn"
+                  title="Watch a video guide for this page (coming soon)."
+                  aria-label="View video tutorial for this page (placeholder)"
+                >
+                  View Video Tutorial for this Page
+                </button>
+                <a
+                  class="feedback-open-external-btn"
+                  href="https://docs.google.com/forms/d/e/1FAIpQLSczqbsV7tOwe8UVmXN50WWDmG-xpwE8g59dSCoKxprns9IUyA/viewform"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Open survey in a new tab
+                  <span class="feedback-open-external-btn__icon" aria-hidden="true">&#8599;</span>
+                </a>
+              </div>
+            </div>
             <p class="feedback-panel__intro">
-              Share what you learned from the dashboard and what priorities should inform future school and facility planning decisions. The survey contains twenty optional questions and is expected to take 5 to 10 minutes to complete. If you would prefer to view and complete the same survey in a new tab or window, or to use your browser's translation tools, click the orange button below.
+              Share what you learned from the dashboard and what priorities should inform future school and facility planning decisions. The survey contains twenty optional questions and is expected to take 5 to 10 minutes to complete. If you would prefer to view and complete the same survey in a new tab or window, or to use your browser's translation tools, click the blue button above.
             </p>
-            <a
-              class="feedback-open-external-btn"
-              href="https://docs.google.com/forms/d/e/1FAIpQLSczqbsV7tOwe8UVmXN50WWDmG-xpwE8g59dSCoKxprns9IUyA/viewform"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Open survey in a new tab
-              <span class="feedback-open-external-btn__icon" aria-hidden="true">&#8599;</span>
-            </a>
             <div class="feedback-google-embed-wrap">
               <iframe
                 class="feedback-google-embed"
@@ -1636,17 +1660,6 @@
           </button>
           <div class="toolbar-panel" id="toolbar-panel">
             <div class="layer-sections">
-              <section class="layer-section" aria-labelledby="heading-boundaries">
-                <h2 class="layer-section-title" id="heading-boundaries">
-                  Assignment Boundaries<button
-                    type="button"
-                    class="info-tip"
-                    title="The geographic area each school is responsible for. Students who live inside the boundary are zoned to that school."
-                    aria-label="More info: Assignment Boundaries"
-                  >?</button>
-                </h2>
-                <div class="toggles" id="boundary-toggles"></div>
-              </section>
               <section class="layer-section" aria-labelledby="heading-schools">
                 <h2 class="layer-section-title" id="heading-schools">
                   School Locations<button
@@ -1657,6 +1670,17 @@
                   >?</button>
                 </h2>
                 <div class="toggles" id="school-toggles"></div>
+              </section>
+              <section class="layer-section" aria-labelledby="heading-boundaries">
+                <h2 class="layer-section-title" id="heading-boundaries">
+                  Assignment Boundaries<button
+                    type="button"
+                    class="info-tip"
+                    title="The geographic area each school is responsible for. Students who live inside the boundary are zoned to that school."
+                    aria-label="More info: Assignment Boundaries"
+                  >?</button>
+                </h2>
+                <div class="toggles" id="boundary-toggles"></div>
               </section>
               <section class="layer-section" aria-labelledby="heading-school-parcels">
                 <h2 class="layer-section-title" id="heading-school-parcels">
@@ -1866,6 +1890,19 @@
           hidden
           aria-label="Residence density color scale"
         >
+          <div class="map-density-legend__header">
+            <span class="map-density-legend__heading">Residence density</span>
+            <button
+              type="button"
+              class="map-density-legend__collapse"
+              id="map-density-legend-collapse"
+              aria-expanded="true"
+              aria-label="Collapse the residence density legend"
+              title="Collapse / expand"
+            >
+              <span class="map-density-legend__caret" aria-hidden="true"></span>
+            </button>
+          </div>
           <div class="map-density-legend__row" id="map-density-legend-student" hidden>
             <div class="map-density-legend__title" id="map-density-legend-student-title">Student Residence Density</div>
             <div

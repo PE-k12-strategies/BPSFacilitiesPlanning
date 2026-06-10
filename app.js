@@ -1161,6 +1161,51 @@
     scheduleRefreshMapDensityLegendValueRanges();
   }
 
+  var MAP_DENSITY_LEGEND_COLLAPSED_KEY = "brevardMapDensityLegendCollapsed";
+
+  function applyMapDensityLegendCollapsed(collapsed) {
+    var leg = document.getElementById("map-density-legend");
+    var btn = document.getElementById("map-density-legend-collapse");
+    if (!leg) return;
+    leg.classList.toggle("is-collapsed", !!collapsed);
+    if (btn) {
+      btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+      btn.setAttribute(
+        "aria-label",
+        collapsed
+          ? "Expand the residence density legend"
+          : "Collapse the residence density legend"
+      );
+    }
+  }
+
+  (function setupMapDensityLegendCollapse() {
+    var btn = document.getElementById("map-density-legend-collapse");
+    if (!btn) return;
+    var collapsed = false;
+    try {
+      collapsed =
+        localStorage.getItem(MAP_DENSITY_LEGEND_COLLAPSED_KEY) === "1";
+    } catch (e) {
+      collapsed = false;
+    }
+    applyMapDensityLegendCollapsed(collapsed);
+    btn.addEventListener("click", function () {
+      var leg = document.getElementById("map-density-legend");
+      if (!leg) return;
+      var next = !leg.classList.contains("is-collapsed");
+      applyMapDensityLegendCollapsed(next);
+      try {
+        localStorage.setItem(
+          MAP_DENSITY_LEGEND_COLLAPSED_KEY,
+          next ? "1" : "0"
+        );
+      } catch (e) {
+        /* ignore */
+      }
+    });
+  })();
+
   var ENCHART_COLORS = { calendar: "#94a3b8", projected: "#93c5fd" };
 
   /** Matches school location dot colors (elementary / middle / high). */
@@ -1477,7 +1522,12 @@
   var HEAT_STUDENT_RAMP_UNIFORM = [
     "interpolate",
     ["linear"],
-    ["heatmap-density"],
+    /* Reserve the hottest colors for only the very densest student
+       concentrations and spread the cooler/mid colors over more of the map: a
+       gamma (>1) on heatmap-density pulls mid densities toward the cool end, so
+       the warm hues are reached only near peak density. Raise the exponent for a
+       stronger effect (more reserved), lower it toward 1 for less. */
+    ["^", ["heatmap-density"], 1.7],
     0,
     "rgba(34, 211, 238, 0)",
     0.164,
@@ -1573,7 +1623,8 @@
   var HEAT_CHARTER_RAMP_UNIFORM = [
     "interpolate",
     ["linear"],
-    ["heatmap-density"],
+    /* Compress the districtwide ramp ~15% (see student ramp note). */
+    ["max", 0, ["/", ["-", ["heatmap-density"], 0.15], 0.85]],
     0,
     "rgba(255, 255, 255, 0)",
     0.2349,
@@ -1668,6 +1719,31 @@
     0.05,
     10,
     0.07,
+    12,
+    0.1,
+    14,
+    0.16,
+    16,
+    0.24,
+    17,
+    0.3,
+  ];
+
+  /**
+   * Softened intensity for the districtwide (no school selected) student +
+   * charter residence heatmaps: ~15% lower across z8–z11 so the zoomed-out map
+   * isn't dominated by the top color, returning to the normal ramp by z12+.
+   */
+  var HEAT_RESIDENCE_INTENSITY_SOFT = [
+    "interpolate",
+    ["linear"],
+    ["zoom"],
+    8,
+    0.0425,
+    10,
+    0.0595,
+    11,
+    0.07225,
     12,
     0.1,
     14,
@@ -1776,6 +1852,10 @@
     var m = getActiveDashboardSchoolMsid();
     var useOriginalRamp = m != null && !isNaN(m);
     var intExpr = residenceHeatIntensityExpr(useOriginalRamp ? 1.4 : 1);
+    /* Districtwide student + charter use a softened (≈15% lower) intensity so
+       the zoomed-out map isn't washed out by the top color; the per-school view
+       keeps the normal intensity. */
+    var intExprSoft = useOriginalRamp ? intExpr : HEAT_RESIDENCE_INTENSITY_SOFT;
     try {
       if (map.getLayer("student-hex-heatmap")) {
         map.setPaintProperty(
@@ -1783,7 +1863,7 @@
           "heatmap-color",
           useOriginalRamp ? HEAT_STUDENT_RAMP_SCHOOL : HEAT_STUDENT_RAMP_UNIFORM
         );
-        map.setPaintProperty("student-hex-heatmap", "heatmap-intensity", intExpr);
+        map.setPaintProperty("student-hex-heatmap", "heatmap-intensity", intExprSoft);
       }
       if (map.getLayer("charter-student-hex-heatmap")) {
         map.setPaintProperty(
@@ -1791,7 +1871,7 @@
           "heatmap-color",
           useOriginalRamp ? HEAT_CHARTER_RAMP_SCHOOL : HEAT_CHARTER_RAMP_UNIFORM
         );
-        map.setPaintProperty("charter-student-hex-heatmap", "heatmap-intensity", intExpr);
+        map.setPaintProperty("charter-student-hex-heatmap", "heatmap-intensity", intExprSoft);
       }
       if (map.getLayer("homeschool-student-hex-heatmap")) {
         map.setPaintProperty(
@@ -6666,7 +6746,7 @@
         label: "High",
         sublabel: "(incl. Jr/Sr)",
         layerIds: ["hs-fill", "hs-outline"],
-        swatchColor: PALETTE.high.fill,
+        swatchVariant: "split-jr-sr",
         defaultChecked: false,
       },
     ];
@@ -16584,8 +16664,11 @@
     function clampSidebarWidth(px) {
       var rect = dashboard.getBoundingClientRect();
       var resizerW = resizer.offsetWidth || 8;
-      var minSide = 240;
-      var minMap = 280;
+      /* Keep the splitter within the middle third of the screen: the data panel
+         and the map are each guaranteed at least one-third of the width. */
+      var third = rect.width / 3;
+      var minSide = third;
+      var minMap = third;
       var max = rect.width - resizerW - minMap;
       return Math.max(minSide, Math.min(max, px));
     }
