@@ -6,9 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
   group: pages
@@ -17,27 +15,9 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout dashboard
         uses: actions/checkout@v4
-
-      - name: Checkout private data
-        uses: actions/checkout@v4
-        with:
-          repository: PE-k12-strategies/BPSFacilitiesPlanning-Public_PrivateData
-          path: private-data
-          token: ${{ secrets.PRIVATE_DATA_PAT || github.token }}
-
-      - name: Merge private data into site
-        run: |
-          mkdir -p data/raw data/sourcedocs
-          cp private-data/data/school_master.csv data/school_master.csv
-          cp private-data/MSID_Lookup.csv private-data/MSID_Lookup.xlsx . || true
-          cp private-data/data/raw/* data/raw/ || true
-          cp private-data/data/sourcedocs/* data/sourcedocs/ || true
 
       - name: Write config.local.js
         env:
@@ -49,14 +29,36 @@ jobs:
           fi
           printf 'window.MAPBOX_ACCESS_TOKEN = "%s";\n' "$MAPBOX_ACCESS_TOKEN" > config.local.js
 
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
+      - name: Fetch school_master.csv from private repo
+        env:
+          TOKEN: ${{ secrets.PRIVATE_DATA_PAT }}
+        run: |
+          mkdir -p data
+          if [ -z "$TOKEN" ]; then
+            echo "::warning::PRIVATE_DATA_PAT not set — school stats will be missing on the live site."
+            exit 0
+          fi
+          curl -fsSL \
+            -H "Authorization: Bearer ${TOKEN}" \
+            -H "Accept: application/vnd.github.raw" \
+            "https://api.github.com/repos/PE-k12-strategies/BPSFacilitiesPlanning-Public_PrivateData/contents/data/school_master.csv?ref=main" \
+            -o data/school_master.csv
+          echo "Downloaded school_master.csv ($(wc -c < data/school_master.csv) bytes)"
 
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Prepare Pages site
+        run: touch .nojekyll
+
+      - name: Deploy to gh-pages branch
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          path: .
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: .
+          exclude_assets: |
+            .github
+            scripts
+            data/raw
+            data/sourcedocs
+            MSID_Lookup.csv
+            MSID_Lookup.xlsx
+            config.local.js.example
