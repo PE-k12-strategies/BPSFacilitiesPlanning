@@ -22,11 +22,13 @@ To refresh data, replace those files (same names) or edit the paths in `app.js` 
 
 ## Private source data
 
-Raw Excel workbooks, feeder-plan source docs, MSID lookup files, and `data/school_master.csv` live in a **separate private repo**:
+Raw Excel workbooks, feeder-plan source docs, and MSID lookup files live in a **separate private repo**:
 
 https://github.com/PE-k12-strategies/BPSFacilitiesPlanning-Public_PrivateData
 
-Clone it alongside this project and copy files into `data/`, `data/raw/`, `data/sourcedocs/`, and the project root (`MSID_Lookup.*`) before running the dashboard or data scripts. See that repo's README for details.
+`data/school_master.csv` is also kept in the private repo as the source of truth, but a copy is **committed in this public repo** so GitHub Pages can serve it (the live dashboard reads it at runtime). After regenerating the CSV, update both repos or set `PRIVATE_DATA_PAT` so deploy can pull the latest from the private repo.
+
+Clone the private repo alongside this project and copy files into `data/raw/`, `data/sourcedocs/`, and the project root (`MSID_Lookup.*`) before running data scripts. See that repo's README for details.
 
 ## GitHub Pages deployment
 

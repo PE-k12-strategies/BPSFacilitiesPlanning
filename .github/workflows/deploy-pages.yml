@@ -34,22 +34,26 @@ jobs:
           fi
           printf 'window.MAPBOX_ACCESS_TOKEN = "%s";\n' "$MAPBOX_ACCESS_TOKEN" > config.local.js
 
-      - name: Fetch school_master.csv from private repo
+      - name: Ensure school_master.csv is present
         env:
           TOKEN: ${{ secrets.PRIVATE_DATA_PAT }}
-        continue-on-error: true
         run: |
           mkdir -p data
-          if [ -z "$TOKEN" ]; then
-            echo "::warning::PRIVATE_DATA_PAT not set — school stats will be missing on the live site."
+          if [ -f data/school_master.csv ]; then
+            echo "Using school_master.csv from public repo ($(wc -c < data/school_master.csv) bytes)"
             exit 0
           fi
-          curl -fsSL \
-            -H "Authorization: Bearer ${TOKEN}" \
-            -H "Accept: application/vnd.github.raw" \
-            "https://api.github.com/repos/PE-k12-strategies/BPSFacilitiesPlanning-Public_PrivateData/contents/data/school_master.csv?ref=main" \
-            -o data/school_master.csv
-          echo "Downloaded school_master.csv ($(wc -c < data/school_master.csv) bytes)"
+          if [ -n "$TOKEN" ]; then
+            curl -fsSL \
+              -H "Authorization: Bearer ${TOKEN}" \
+              -H "Accept: application/vnd.github.raw" \
+              "https://api.github.com/repos/PE-k12-strategies/BPSFacilitiesPlanning-Public_PrivateData/contents/data/school_master.csv?ref=main" \
+              -o data/school_master.csv
+            echo "Downloaded school_master.csv from private repo ($(wc -c < data/school_master.csv) bytes)"
+            exit 0
+          fi
+          echo "::error::data/school_master.csv is missing. Commit it to this repo or set PRIVATE_DATA_PAT."
+          exit 1
 
       - name: Prepare Pages site
         run: touch .nojekyll
