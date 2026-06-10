@@ -1,0 +1,62 @@
+name: Deploy GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout dashboard
+        uses: actions/checkout@v4
+
+      - name: Checkout private data
+        uses: actions/checkout@v4
+        with:
+          repository: PE-k12-strategies/BPSFacilitiesPlanning-Public_PrivateData
+          path: private-data
+          token: ${{ secrets.PRIVATE_DATA_PAT || github.token }}
+
+      - name: Merge private data into site
+        run: |
+          mkdir -p data/raw data/sourcedocs
+          cp private-data/data/school_master.csv data/school_master.csv
+          cp private-data/MSID_Lookup.csv private-data/MSID_Lookup.xlsx . || true
+          cp private-data/data/raw/* data/raw/ || true
+          cp private-data/data/sourcedocs/* data/sourcedocs/ || true
+
+      - name: Write config.local.js
+        env:
+          MAPBOX_ACCESS_TOKEN: ${{ secrets.MAPBOX_ACCESS_TOKEN }}
+        run: |
+          if [ -z "$MAPBOX_ACCESS_TOKEN" ]; then
+            echo "::error::Set repository secret MAPBOX_ACCESS_TOKEN (Mapbox public pk. token)."
+            exit 1
+          fi
+          printf 'window.MAPBOX_ACCESS_TOKEN = "%s";\n' "$MAPBOX_ACCESS_TOKEN" > config.local.js
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

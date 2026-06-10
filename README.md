@@ -28,6 +28,19 @@ https://github.com/PE-k12-strategies/BPSFacilitiesPlanning-Public_PrivateData
 
 Clone it alongside this project and copy files into `data/`, `data/raw/`, `data/sourcedocs/`, and the project root (`MSID_Lookup.*`) before running the dashboard or data scripts. See that repo's README for details.
 
+## GitHub Pages deployment
+
+The live site at https://pe-k12-strategies.github.io/BPSFacilitiesPlanning/ is built by `.github/workflows/deploy-pages.yml`. That workflow copies private data into the site and writes `config.local.js` at deploy time.
+
+**Repository secrets required** (Settings → Secrets and variables → Actions):
+
+| Secret | Purpose |
+|--------|---------|
+| `MAPBOX_ACCESS_TOKEN` | Mapbox public token (`pk.…`) for the basemap |
+| `PRIVATE_DATA_PAT` | Optional PAT with read access to the private data repo; omit if org allows `GITHUB_TOKEN` to read sibling private repos |
+
+**Pages source:** set to **GitHub Actions** (Settings → Pages → Build and deployment).
+
 ## Optional legacy scripts
 
 The `scripts/` folder still contains Python helpers used by an older workflow; they are not required to run this map.

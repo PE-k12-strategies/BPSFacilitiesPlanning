@@ -1209,6 +1209,23 @@
 
   mapboxgl.accessToken = MAPBOX_ACCESS_TOKEN;
 
+  /** Update or dismiss the map loading overlay (defined before map init). */
+  function showMapLoadingOverlayMessage(title, hint) {
+    var el = document.getElementById("map-loading-overlay");
+    if (!el) return;
+    el.classList.remove("is-hidden");
+    var t = el.querySelector(".map-loading-overlay__title");
+    var h = el.querySelector(".map-loading-overlay__hint");
+    if (t) t.textContent = title;
+    if (h) h.textContent = hint;
+  }
+
+  function hideMapLoadingOverlay() {
+    var el = document.getElementById("map-loading-overlay");
+    if (!el) return;
+    el.classList.add("is-hidden");
+  }
+
   var map = new mapboxgl.Map({
     container: "map",
     style: MAPBOX_STYLES.light,
@@ -1251,6 +1268,25 @@
     "bottom-left"
   );
   map.addControl(new mapboxgl.AttributionControl({ compact: true }), "bottom-right");
+
+  map.on("error", function (evt) {
+    console.error(evt);
+    var msg =
+      evt && evt.error && evt.error.message
+        ? evt.error.message
+        : "Mapbox failed to load the basemap.";
+    showMapLoadingOverlayMessage(
+      "Unable to load map",
+      msg + " Check that config.local.js contains a valid Mapbox public token (pk.)."
+    );
+  });
+
+  if (!MAPBOX_ACCESS_TOKEN) {
+    showMapLoadingOverlayMessage(
+      "Map configuration missing",
+      "config.local.js was not found or has no Mapbox token. For local use, copy config.local.js.example to config.local.js. For GitHub Pages, set the MAPBOX_ACCESS_TOKEN repository secret and redeploy."
+    );
+  }
 
   function setMapboxBasemap(mode) {
     if (!MAPBOX_STYLES[mode]) return;
@@ -3030,6 +3066,7 @@
   });
 
   map.on("load", function () {
+    if (!MAPBOX_ACCESS_TOKEN) return;
     setupMapDensityLegendViewListeners();
     var basemapRoot = document.getElementById("basemap-toggle");
     if (basemapRoot) {
@@ -3206,14 +3243,15 @@
       });
   });
 
-  /** Fades out the map-wide "Loading school data" overlay after all initial
-   *  Promise.all fetches resolve (or fail). Safe to call before the overlay
-   *  exists — early-returns on null lookup. */
-  function hideMapLoadingOverlay() {
+  /** Safety net if map load or data fetch hangs (e.g. missing deploy artifacts). */
+  setTimeout(function () {
     var el = document.getElementById("map-loading-overlay");
-    if (!el) return;
-    el.classList.add("is-hidden");
-  }
+    if (!el || el.classList.contains("is-hidden")) return;
+    showMapLoadingOverlayMessage(
+      "Loading is taking longer than expected",
+      "If this is the public GitHub Pages site, confirm deployment includes config.local.js and data/school_master.csv from the private data repo."
+    );
+  }, 120000);
 
   function buildSchoolLookup(schoolsFc) {
     var byMsid = {};
