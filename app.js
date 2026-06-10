@@ -6,7 +6,9 @@
     ms: "geo/MSBoundaries.json",
     hs: "geo/HSBoundaries.json",
     schools: "geo/SchoolLocations.json",
-    /** Single source for enrollment, capacity, utilization, From-To capture KPIs, facility stats, demographics (CSV). */
+    /** Sharded JSON index (public deploy); no single downloadable CSV. */
+    masterIndex: "data/processed/school_master_index.json",
+    /** Local/dev fallback when shards are missing. */
     masterCsv: "data/school_master.csv",
     sankeyEsMs: "data/processed/sankey_es_ms.json",
     /** Deduped bundle (see scripts/bundle-dedupe-student-hex.cjs) — one geometry per hex, all student rows. */
@@ -182,6 +184,70 @@
       byMsid[idUnpadded] = obj;
     }
     return byMsid;
+  }
+
+  /**
+   * Merges one shard object into MASTER_BY_MSID (padded + unpadded MSID keys).
+   * @param {Object<string, Object>} into
+   * @param {Object<string, Object>|null} shard
+   * @returns {Object<string, Object>}
+   */
+  function mergeSchoolMasterShard(into, shard) {
+    if (!shard) return into;
+    Object.keys(shard).forEach(function (k) {
+      var obj = shard[k];
+      if (!obj || obj.msid == null) return;
+      var idNum = parseInt(String(obj.msid).trim(), 10);
+      if (isNaN(idNum)) return;
+      var idPadded = String(idNum).padStart(4, "0");
+      var idUnpadded = String(idNum);
+      var row = Object.assign({}, obj, { msid: idPadded });
+      into[idPadded] = row;
+      into[idUnpadded] = row;
+    });
+    return into;
+  }
+
+  /**
+   * Loads school stats from sharded JSON on the public site; falls back to CSV locally.
+   * @returns {Promise<Object<string, Object>|null>}
+   */
+  function loadSchoolMasterByMsid() {
+    return smartFetch(DATA.masterIndex, "json")
+      .then(function (r) {
+        return r.ok ? r.json() : null;
+      })
+      .then(function (idx) {
+        if (!idx || !idx.shards || !idx.shards.length) {
+          return smartFetch(DATA.masterCsv, "text")
+            .then(function (r) {
+              return r.ok ? r.text() : "";
+            })
+            .then(function (text) {
+              return parseSchoolMasterCsv(text);
+            });
+        }
+        return Promise.all(
+          idx.shards.map(function (path) {
+            return smartFetch(path, "json")
+              .then(function (r) {
+                return r.ok ? r.json() : null;
+              })
+              .catch(function () {
+                return null;
+              });
+          })
+        ).then(function (parts) {
+          var byMsid = {};
+          for (var i = 0; i < parts.length; i++) {
+            mergeSchoolMasterShard(byMsid, parts[i]);
+          }
+          return Object.keys(byMsid).length ? byMsid : null;
+        });
+      })
+      .catch(function () {
+        return null;
+      });
   }
 
   /** @returns {Object|null} */
@@ -3091,13 +3157,7 @@
       smartFetch(DATA.schools).then(function (r) {
         return r.json();
       }),
-      smartFetch(DATA.masterCsv, "text")
-        .then(function (r) {
-          return r.ok ? r.text() : "";
-        })
-        .catch(function () {
-          return "";
-        }),
+      loadSchoolMasterByMsid(),
       smartFetch(DATA.sankeyEsMs)
         .then(function (r) {
           return r.ok ? r.json() : null;
@@ -3201,10 +3261,10 @@
              1  ms                     7  schoolParcels         13  schoolIsochrones
              2  hs                     8  schoolBoardDistricts  14  bpsEmployeeCount
              3  schools                9  charterSchoolLocations 15  privateSchoolLocations
-             4  masterCsv (text)      10  meadowlaneCapture…    16  homeschoolStudentHexagons
+             4  masterByMsid (object) 10  meadowlaneCapture…    16  homeschoolStudentHexagons
              5  sankeyEsMs            11  municipalBoundaries
            travelImpact was removed (#4) — its slot is gone, all later indices shift down by 1. */
-        MASTER_BY_MSID = parseSchoolMasterCsv(results[4] || "");
+        MASTER_BY_MSID = results[4] || null;
         SANKEY_CACHE = results[5];
         geoJsonDataCache = results;
         MEADOWLANE_CAPTURE_OVERRIDE = results[10];
@@ -3249,7 +3309,7 @@
     if (!el || el.classList.contains("is-hidden")) return;
     showMapLoadingOverlayMessage(
       "Loading is taking longer than expected",
-      "If this is the public GitHub Pages site, confirm deployment includes config.local.js and data/school_master.csv from the private data repo."
+      "If this is the public GitHub Pages site, confirm deployment includes config.local.js and school master JSON shards."
     );
   }, 120000);
 

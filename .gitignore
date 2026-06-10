@@ -4,6 +4,7 @@ dist/
 .DS_Store
 
 # Sensitive or large local inputs
+data/school_master.csv
 data/raw/*.csv
 data/raw/*.shp
 data/raw/*.shx

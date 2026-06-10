@@ -26,7 +26,7 @@ Raw Excel workbooks, feeder-plan source docs, and MSID lookup files live in a **
 
 https://github.com/PE-k12-strategies/BPSFacilitiesPlanning-Public_PrivateData
 
-`data/school_master.csv` is also kept in the private repo as the source of truth, but a copy is **committed in this public repo** so GitHub Pages can serve it (the live dashboard reads it at runtime). After regenerating the CSV, update both repos or set `PRIVATE_DATA_PAT` so deploy can pull the latest from the private repo.
+`data/school_master.csv` lives in the **private repo** only. For the public site, run `py -3 scripts/export_school_master_shards.py` after updating the CSV — that writes `data/processed/school_master_index.json` and opaque JSON shards under `data/processed/school_master_d/` (no single downloadable spreadsheet on Pages). Commit the updated shards to this repo, or set `PRIVATE_DATA_PAT` so deploy rebuilds them from the private CSV.
 
 Clone the private repo alongside this project and copy files into `data/raw/`, `data/sourcedocs/`, and the project root (`MSID_Lookup.*`) before running data scripts. See that repo's README for details.
 
