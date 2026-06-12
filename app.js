@@ -561,12 +561,42 @@
     return null;
   }
 
-  /** Fixed K-12 list shown in the per-boundary grade-chip strip. PK and NG
-   *  are intentionally excluded from the chip UI. (Aggregation paths still
-   *  count their underlying students unless the user toggles them off.) */
+  /** Fixed K-12 list used for grade-overlap conflict checks between boundaries. */
   var SANDBOX_FIXED_GRADE_CHIPS = [
     "K", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"
   ];
+
+  /** Grade buckets that start unchecked on every boundary (still selectable). */
+  var SANDBOX_DEFAULT_OFF_GRADES = ["PK", "__NOGRADE__"];
+  /** Attendance-type buckets that start unchecked on every boundary. */
+  var SANDBOX_DEFAULT_OFF_ATTENDANCE_TYPES = ["charter", "choice", "homeschool"];
+  /** Per-boundary grade-chip strip order: PK first, then K-12, then No-grade. */
+  var SANDBOX_BOUNDARY_GRADE_CHIPS = ["PK"]
+    .concat(SANDBOX_FIXED_GRADE_CHIPS)
+    .concat(["__NOGRADE__"]);
+
+  function sandboxDefaultGradeIncluded(gradeCanon) {
+    return SANDBOX_DEFAULT_OFF_GRADES.indexOf(gradeCanon) === -1;
+  }
+  function sandboxDefaultAttendanceTypeIncluded(atype) {
+    return SANDBOX_DEFAULT_OFF_ATTENDANCE_TYPES.indexOf(atype) === -1;
+  }
+  /** Fresh gradeToggles object pre-seeded with the default-off grade buckets. */
+  function sandboxMakeDefaultGradeToggles() {
+    var t = Object.create(null);
+    for (var i = 0; i < SANDBOX_DEFAULT_OFF_GRADES.length; i++) {
+      t[SANDBOX_DEFAULT_OFF_GRADES[i]] = false;
+    }
+    return t;
+  }
+  /** Fresh attendanceTypeToggles object pre-seeded with the default-off types. */
+  function sandboxMakeDefaultAttendanceTypeToggles() {
+    var t = Object.create(null);
+    for (var i = 0; i < SANDBOX_DEFAULT_OFF_ATTENDANCE_TYPES.length; i++) {
+      t[SANDBOX_DEFAULT_OFF_ATTENDANCE_TYPES[i]] = false;
+    }
+    return t;
+  }
 
   /** Returns the set of grade codes (from SANDBOX_FIXED_GRADE_CHIPS) that are
    *  *enabled* on boundary `b` — i.e., gradeToggles[g] !== false. New
@@ -700,8 +730,8 @@
       baseMsid: null,
       selectedHexKeys: Object.create(null),
       confirmedHexKeysSnapshot: Object.create(null),
-      gradeToggles: Object.create(null),
-      attendanceTypeToggles: Object.create(null),
+      gradeToggles: sandboxMakeDefaultGradeToggles(),
+      attendanceTypeToggles: sandboxMakeDefaultAttendanceTypeToggles(),
       schoolListExpanded: { attendance: false, zoned: false },
       lassoRegionFootprintFeature: null,
     };
@@ -1198,6 +1228,124 @@
       try {
         localStorage.setItem(
           MAP_DENSITY_LEGEND_COLLAPSED_KEY,
+          next ? "1" : "0"
+        );
+      } catch (e) {
+        /* ignore */
+      }
+    });
+  })();
+
+  /**
+   * Discrete fill colors for travel shed rings, keyed by mile (1–10).
+   * Must match the `school-isochrones-fill` `fill-color` match expression.
+   */
+  var TRAVEL_SHED_MILE_COLORS = {
+    1: "#fffbeb",
+    2: "#fef3c7",
+    3: "#fde68a",
+    4: "#fcd34d",
+    5: "#fbbf24",
+    6: "#d97706",
+    7: "#b45309",
+    8: "#92400e",
+    9: "#78350f",
+    10: "#451a03",
+  };
+
+  /** Build the labeled mile swatches for the travel shed legend, up to maxMiles. */
+  function renderTravelShedLegendScale(maxMiles) {
+    var scale = document.getElementById("map-travel-shed-legend-scale");
+    if (!scale) return;
+    var max = Math.round(Number(maxMiles));
+    if (isNaN(max) || max < 1) max = 1;
+    if (max > 10) max = 10;
+    var html = "";
+    for (var mi = 1; mi <= max; mi++) {
+      var color = TRAVEL_SHED_MILE_COLORS[mi] || "#d4d4d8";
+      html +=
+        '<span class="map-travel-shed-legend__swatch">' +
+        '<span class="map-travel-shed-legend__chip" style="background:' +
+        color +
+        ';"></span>' +
+        '<span class="map-travel-shed-legend__chip-label">' +
+        mi +
+        "</span></span>";
+    }
+    scale.innerHTML = html;
+  }
+
+  /**
+   * Show the travel shed legend when the Travel sheds layer is on, visible, and a
+   * school's sheds are actually drawn; keep its mile swatches in sync with the
+   * current max-miles slider.
+   */
+  function syncTravelShedLegend() {
+    var leg = document.getElementById("map-travel-shed-legend");
+    if (!leg) {
+      return;
+    }
+    var tgl = document.getElementById("toggle-travel-sheds");
+    var on = !!(tgl && tgl.checked);
+    var visible = on;
+    if (visible && map && map.getLayer) {
+      try {
+        if (map.getLayer("school-isochrones-fill")) {
+          visible =
+            map.getLayoutProperty("school-isochrones-fill", "visibility") ===
+            "visible";
+        }
+      } catch (e) {
+        /* ignore */
+      }
+    }
+    var msid = getActiveTravelShedMsid();
+    if (visible && (msid == null || isNaN(Number(msid)))) {
+      visible = false;
+    }
+    if (visible) {
+      renderTravelShedLegendScale(travelShedMaxMiles);
+    }
+    leg.hidden = !visible;
+  }
+
+  var MAP_TRAVEL_SHED_LEGEND_COLLAPSED_KEY = "brevardMapTravelShedLegendCollapsed";
+
+  function applyTravelShedLegendCollapsed(collapsed) {
+    var leg = document.getElementById("map-travel-shed-legend");
+    var btn = document.getElementById("map-travel-shed-legend-collapse");
+    if (!leg) return;
+    leg.classList.toggle("is-collapsed", !!collapsed);
+    if (btn) {
+      btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+      btn.setAttribute(
+        "aria-label",
+        collapsed
+          ? "Expand the travel shed legend"
+          : "Collapse the travel shed legend"
+      );
+    }
+  }
+
+  (function setupTravelShedLegendCollapse() {
+    var btn = document.getElementById("map-travel-shed-legend-collapse");
+    if (!btn) return;
+    var collapsed = false;
+    try {
+      collapsed =
+        localStorage.getItem(MAP_TRAVEL_SHED_LEGEND_COLLAPSED_KEY) === "1";
+    } catch (e) {
+      collapsed = false;
+    }
+    applyTravelShedLegendCollapsed(collapsed);
+    btn.addEventListener("click", function () {
+      var leg = document.getElementById("map-travel-shed-legend");
+      if (!leg) return;
+      var next = !leg.classList.contains("is-collapsed");
+      applyTravelShedLegendCollapsed(next);
+      try {
+        localStorage.setItem(
+          MAP_TRAVEL_SHED_LEGEND_COLLAPSED_KEY,
           next ? "1" : "0"
         );
       } catch (e) {
@@ -1915,6 +2063,7 @@
     );
     if (studentHexFc && studentHexFc.features && studentHexFc.features.length) {
       STUDENT_HEX_INDEX = buildStudentHexIndex(studentHexFc);
+      scenarioPkStudentMsidCache = Object.create(null);
       TRAVEL_SHED_RESIDENCE_INDEX = buildTravelShedResidenceIndex(studentHexFc);
       EMPTY_HEX_GEOMETRY = buildEmptyHexGeometryMesh(
         STUDENT_HEX_INDEX ? STUDENT_HEX_INDEX.geometryByHexKey : null,
@@ -2257,6 +2406,7 @@
         /* ignore */
       }
     }
+    syncTravelShedLegend();
   }
 
   function applyGeoJsonLayersFromFetchResults(results, opts) {
@@ -3140,6 +3290,7 @@
         );
         if (studentHexFc && studentHexFc.features && studentHexFc.features.length) {
           STUDENT_HEX_INDEX = buildStudentHexIndex(studentHexFc);
+          scenarioPkStudentMsidCache = Object.create(null);
           TRAVEL_SHED_RESIDENCE_INDEX = buildTravelShedResidenceIndex(studentHexFc);
           EMPTY_HEX_GEOMETRY = buildEmptyHexGeometryMesh(
             STUDENT_HEX_INDEX ? STUDENT_HEX_INDEX.geometryByHexKey : null,
@@ -4386,8 +4537,8 @@
     }
     active.selectedHexKeys = Object.create(null);
     active.confirmedHexKeysSnapshot = Object.create(null);
-    active.gradeToggles = Object.create(null);
-    active.attendanceTypeToggles = Object.create(null);
+    active.gradeToggles = sandboxMakeDefaultGradeToggles();
+    active.attendanceTypeToggles = sandboxMakeDefaultAttendanceTypeToggles();
     active.schoolListExpanded = { attendance: false, zoned: false };
     active.lassoRegionFootprintFeature = null;
     clearBoundarySandboxLassoLine();
@@ -4939,8 +5090,8 @@
   }
 
   function resetBoundarySandboxFilterState() {
-    BOUNDARY_SANDBOX.gradeToggles = Object.create(null);
-    BOUNDARY_SANDBOX.attendanceTypeToggles = Object.create(null);
+    BOUNDARY_SANDBOX.gradeToggles = sandboxMakeDefaultGradeToggles();
+    BOUNDARY_SANDBOX.attendanceTypeToggles = sandboxMakeDefaultAttendanceTypeToggles();
     BOUNDARY_SANDBOX.schoolListExpanded = { attendance: false, zoned: false };
   }
 
@@ -5067,7 +5218,7 @@
       var fk = allKeys[j];
       if ((fullByType[fk] || 0) > 0) {
         if (t[fk] === undefined) {
-          t[fk] = true;
+          t[fk] = sandboxDefaultAttendanceTypeIncluded(fk);
         }
       }
     }
@@ -5194,7 +5345,7 @@
     for (var fk in fullByGrade) {
       if (Object.prototype.hasOwnProperty.call(fullByGrade, fk) && (fullByGrade[fk] || 0) > 0) {
         if (t[fk] === undefined) {
-          t[fk] = true;
+          t[fk] = sandboxDefaultGradeIncluded(fk);
         }
       }
     }
@@ -5809,8 +5960,8 @@
     }
     active.selectedHexKeys = Object.create(null);
     active.confirmedHexKeysSnapshot = Object.create(null);
-    active.gradeToggles = Object.create(null);
-    active.attendanceTypeToggles = Object.create(null);
+    active.gradeToggles = sandboxMakeDefaultGradeToggles();
+    active.attendanceTypeToggles = sandboxMakeDefaultAttendanceTypeToggles();
     active.schoolListExpanded = { attendance: false, zoned: false };
     active.lassoRegionFootprintFeature = null;
     var counts = { added: 0, skipped: 0 };
@@ -6332,18 +6483,17 @@
         renderSandboxSummaryTable();
       });
       li.appendChild(del);
-      /* Per-boundary grade chips. Always show the fixed K-12 chip strip so
-         the user can pre-configure grade ranges before drawing — this lets
-         non-overlapping boundaries (K-6 ES + 7-8 MS) share hexes without
-         tripping the grade-conflict rule. PK and NG are excluded from the
-         chip UI per design. */
+      /* Per-boundary grade chips. Always show the PK + K-12 + No-grade chip
+         strip so the user can pre-configure grade ranges before drawing — this
+         lets non-overlapping boundaries (K-6 ES + 7-8 MS) share hexes without
+         tripping the grade-conflict rule. PK and No-grade start unchecked. */
       var gradesWrap = document.createElement("div");
       gradesWrap.className = "sandbox-boundary-row__grades-wrap";
       var chipsRow = document.createElement("div");
       chipsRow.className = "sandbox-boundary-row__grade-chips";
-      for (var pgi = 0; pgi < SANDBOX_FIXED_GRADE_CHIPS.length; pgi++) {
+      for (var pgi = 0; pgi < SANDBOX_BOUNDARY_GRADE_CHIPS.length; pgi++) {
         (function (gradeCanon, boundaryIdArg) {
-          var on = b.gradeToggles[gradeCanon] !== false; /* default-on */
+          var on = b.gradeToggles[gradeCanon] !== false; /* PK/NG seeded off */
           var chip = document.createElement("label");
           chip.className = "sandbox-boundary-row__grade-chip" + (on ? "" : " is-off");
           var cb = document.createElement("input");
@@ -6373,7 +6523,7 @@
             document.createTextNode(travelShedGradeDisplayLabel(gradeCanon))
           );
           chipsRow.appendChild(chip);
-        })(SANDBOX_FIXED_GRADE_CHIPS[pgi], b.id);
+        })(SANDBOX_BOUNDARY_GRADE_CHIPS[pgi], b.id);
       }
       gradesWrap.appendChild(chipsRow);
       var copyBtn = document.createElement("button");
@@ -6387,7 +6537,7 @@
           for (var ck = 0; ck < BOUNDARY_SANDBOX.boundaries.length; ck++) {
             var other = BOUNDARY_SANDBOX.boundaries[ck];
             if (other.id === sourceB.id) continue;
-            other.gradeToggles = Object.create(null);
+            other.gradeToggles = sandboxMakeDefaultGradeToggles();
             for (var gk in sourceB.gradeToggles) {
               other.gradeToggles[gk] = sourceB.gradeToggles[gk];
             }
@@ -6439,7 +6589,14 @@
     return keys;
   }
 
-  /** Aggregate stats for one boundary, honoring its grade toggles (no attendance-type filter). */
+  /** True when detail `d` passes boundary `b`'s attendance-type toggles. */
+  function sandboxBoundaryAttendanceTypeIncludes(b, d) {
+    if (!b || !b.attendanceTypeToggles) return true;
+    var cat = sandboxAttendanceCategoryForDetail(d);
+    return b.attendanceTypeToggles[cat] !== false;
+  }
+
+  /** Aggregate stats for one boundary, honoring its grade AND attendance-type toggles. */
   function aggregateSandboxBoundaryByGrade(b) {
     var byGrade = Object.create(null);
     if (!b) return byGrade;
@@ -6457,6 +6614,7 @@
             var d = arr[di];
             var gc = sandboxGradeCanonicalForDetail(d);
             if (b.gradeToggles[gc] === false) continue;
+            if (!sandboxBoundaryAttendanceTypeIncludes(b, d)) continue;
             byGrade[gc] = (byGrade[gc] || 0) + 1;
           }
         }
@@ -6471,6 +6629,7 @@
           var dh = hmArr[hi];
           var gc2 = sandboxGradeCanonicalForDetail(dh);
           if (b.gradeToggles[gc2] === false) continue;
+          if (!sandboxBoundaryAttendanceTypeIncludes(b, dh)) continue;
           byGrade[gc2] = (byGrade[gc2] || 0) + 1;
         }
       }
@@ -11644,11 +11803,38 @@
     return out;
   }
 
-  /** Grade codes served by a school (from master CSV grades_served). */
+  /** Grades that are off by default in the scenario grade chips. PK is offered as
+   *  a toggle for schools that enroll PK students, but stays unchecked until the
+   *  user opts in. All other grades default on. */
+  function scenarioGradeDefaultChecked(gradeCanon) {
+    return gradeCanon !== "PK";
+  }
+
+  var scenarioPkStudentMsidCache = Object.create(null);
+
+  /** True when the school (by attendance MSID) enrolls at least one PK student. */
+  function scenarioMsidHasPkStudent(msid) {
+    if (msid == null || isNaN(msid)) return false;
+    var key = String(msid);
+    if (Object.prototype.hasOwnProperty.call(scenarioPkStudentMsidCache, key)) {
+      return scenarioPkStudentMsidCache[key];
+    }
+    var byGrade = scenarioEnrollmentByGradeForMsid(msid);
+    var has = !!(byGrade && byGrade.PK > 0);
+    scenarioPkStudentMsidCache[key] = has;
+    return has;
+  }
+
+  /** Grade codes served by a school (from master CSV grades_served), plus PK for
+   *  any school that enrolls at least one PK student even when grades_served omits it. */
   function scenarioGradeCodesForMsid(msid) {
     var m = masterRow(msid);
     if (!m) return [];
-    return parseGradesServedToCanonList(m.grades_served);
+    var codes = parseGradesServedToCanonList(m.grades_served);
+    if (codes.indexOf("PK") === -1 && scenarioMsidHasPkStudent(msid)) {
+      codes = ["PK"].concat(codes);
+    }
+    return codes;
   }
 
   /** Union of grade codes served by all scenario rows (used as the display universe for chips). */
@@ -11681,9 +11867,10 @@
   function scenarioGradeIncludedForMsid(msid, gradeCanon, isBaseRow) {
     if (msid == null || isNaN(msid) || !gradeCanon) return true;
     var byMs = scenarioGradeCheckedByMsid[msid];
-    if (!byMs) return true;
-    if (byMs[gradeCanon] === false) return false;
-    return true;
+    var stored = byMs ? byMs[gradeCanon] : undefined;
+    if (stored === true) return true;
+    if (stored === false) return false;
+    return scenarioGradeDefaultChecked(gradeCanon);
   }
 
   /** Per-grade student counts for a school's attendance MSID from student hex export. */
@@ -11761,7 +11948,9 @@
       inp.dataset.msid = String(r.msid);
       inp.dataset.gradeCanon = gc;
       var byMs = scenarioGradeCheckedByMsid[r.msid] || Object.create(null);
-      inp.checked = byMs[gc] !== false;
+      var storedChk = byMs[gc];
+      inp.checked =
+        storedChk == null ? scenarioGradeDefaultChecked(gc) : storedChk !== false;
       inp.addEventListener("change", function (e) {
         var tgt = e.target;
         var ms = Number(tgt && tgt.dataset ? tgt.dataset.msid : NaN);
@@ -13971,7 +14160,7 @@
           top.properties && top.properties.iso_miles != null
             ? Math.round(Number(top.properties.iso_miles))
             : NaN;
-        var gIso = top.geometry;
+        var gIso = fullTravelShedIsochroneGeometryForProps(top.properties) || top.geometry;
         var ptLng = e.lngLat.lng;
         var ptLat = e.lngLat.lat;
         var seq = ++travelShedResidenceHoverGen;
@@ -15268,6 +15457,36 @@
       }
       travelShedResidenceDebounceId = null;
     }
+  }
+
+  /**
+   * Mapbox returns rendered GeoJSON geometries clipped to the current tile / viewport.
+   * Use the original in-memory isochrone feature so hover residence totals do not
+   * change by zoom level or by which side of the shed the user hovers.
+   */
+  function fullTravelShedIsochroneGeometryForProps(props) {
+    if (
+      !props ||
+      !SCHOOL_ISOCHRONES_ENRICHED ||
+      !SCHOOL_ISOCHRONES_ENRICHED.features
+    ) {
+      return null;
+    }
+    var msid = Number(props.iso_msid);
+    var miles = Number(props.iso_miles);
+    if (isNaN(msid) || isNaN(miles)) {
+      return null;
+    }
+    var feats = SCHOOL_ISOCHRONES_ENRICHED.features;
+    for (var i = 0; i < feats.length; i++) {
+      var f = feats[i];
+      var p = f && f.properties;
+      if (!f || !f.geometry || !p) continue;
+      if (Number(p.iso_msid) === msid && Number(p.iso_miles) === miles) {
+        return f.geometry;
+      }
+    }
+    return null;
   }
 
   /**
@@ -17962,6 +18181,7 @@
           BOUNDARY_SANDBOX.attendanceTypeToggles || Object.create(null);
         BOUNDARY_SANDBOX.attendanceTypeToggles[atp] = t2.checked;
         updateSandboxStatsPanelSummary();
+        renderSandboxSummaryTable();
       });
     }
     var pSand = document.getElementById("scenario-subpanel-sandbox") ||
@@ -18067,7 +18287,8 @@
       if (scenarioFeederChecked[msid] === false) c[msid] = 0;
     }
     if (Object.keys(c).length) p.c = c;
-    /* Same default-is-on assumption for grade toggles. */
+    /* Persist only grade toggles that deviate from their per-grade default
+       (most grades default on; PK defaults off). 0 = turned off, 1 = turned on. */
     var g = {};
     for (var ms in scenarioGradeCheckedByMsid) {
       if (!Object.prototype.hasOwnProperty.call(scenarioGradeCheckedByMsid, ms)) continue;
@@ -18076,7 +18297,11 @@
       var off = {};
       var any = false;
       for (var gc in entry) {
-        if (entry[gc] === false) { off[gc] = 0; any = true; }
+        var val = entry[gc];
+        if (val == null) continue;
+        var def = scenarioGradeDefaultChecked(gc);
+        if (val === false && def) { off[gc] = 0; any = true; }
+        else if (val === true && !def) { off[gc] = 1; any = true; }
       }
       if (any) g[ms] = off;
     }
@@ -18194,16 +18419,27 @@
       for (var hk in b.selectedHexKeys) {
         if (b.selectedHexKeys[hk]) hexKeys.push(hk);
       }
+      /* Persist only deviations from each bucket's default (most grades/types
+         default on; PK, No-grade, charter, choice, homeschool default off).
+         0 = turned off, 1 = turned on. */
       var off = {};
       if (b.gradeToggles) {
         for (var gk in b.gradeToggles) {
-          if (b.gradeToggles[gk] === false) off[gk] = 0;
+          var gv = b.gradeToggles[gk];
+          if (gv == null) continue;
+          var gDef = sandboxDefaultGradeIncluded(gk);
+          if (gv === false && gDef) off[gk] = 0;
+          else if (gv === true && !gDef) off[gk] = 1;
         }
       }
       var atOff = {};
       if (b.attendanceTypeToggles) {
         for (var ak in b.attendanceTypeToggles) {
-          if (b.attendanceTypeToggles[ak] === false) atOff[ak] = 0;
+          var av = b.attendanceTypeToggles[ak];
+          if (av == null) continue;
+          var aDef = sandboxDefaultAttendanceTypeIncluded(ak);
+          if (av === false && aDef) atOff[ak] = 0;
+          else if (av === true && !aDef) atOff[ak] = 1;
         }
       }
       p.bs.push({

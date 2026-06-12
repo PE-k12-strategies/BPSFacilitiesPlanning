@@ -131,39 +131,19 @@
             </p>
           </div>
 
-          <div class="welcome-hero__right">
+          <div class="welcome-hero__right" id="welcome-video-section">
             <h2 class="welcome-section__title welcome-video-title">Video walkthrough</h2>
-            <!--
-              Tutorial video placeholder.
-              To embed a YouTube video here, replace the inner contents of
-              .welcome-video-frame with an iframe, e.g.:
-                <iframe
-                  class="welcome-video-iframe"
-                  src="https://www.youtube.com/embed/YOUR_VIDEO_ID"
-                  title="District Exploration Dashboard tutorial"
-                  frameborder="0"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowfullscreen
-                ></iframe>
-              and remove the placeholder copy + button below.
-            -->
-            <div class="welcome-video-frame" aria-label="Tutorial video placeholder">
-              <div class="welcome-video-placeholder">
-                <p class="welcome-video-placeholder__title">Video tutorial coming soon</p>
-                <p class="welcome-video-placeholder__hint">
-                  A short guided walkthrough of the dashboard will be available here.
-                </p>
-              </div>
+            <div class="welcome-video-frame">
+              <iframe
+                id="welcome-video-iframe"
+                class="welcome-video-iframe"
+                src="https://www.youtube-nocookie.com/embed/h_nA9HHqbnc?rel=0&amp;start=0"
+                title="District Exploration Dashboard tutorial"
+                frameborder="0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowfullscreen
+              ></iframe>
             </div>
-            <a
-              class="welcome-video-link"
-              href="#"
-              aria-disabled="true"
-              tabindex="-1"
-              onclick="event.preventDefault();"
-            >
-              Watch tutorial (coming soon)
-            </a>
 
             <div class="welcome-explore" aria-label="Ways to explore the dashboard">
               <h3 class="welcome-explore__title">Explore at your own pace</h3>
@@ -394,8 +374,9 @@
               type="button"
               id="existing-view-tutorial-btn"
               class="scenario-view-tutorial-btn panel-howto-tutorial-btn"
-              title="Watch a video guide for this page (coming soon)."
-              aria-label="View video tutorial for this page (placeholder)"
+              data-tutorial-start="0"
+              title="Watch the video tutorial for this page"
+              aria-label="View the video tutorial for this page"
             >
               View Video Tutorial for this Page
             </button>
@@ -684,8 +665,9 @@
               type="button"
               id="scenario-view-tutorial-btn"
               class="scenario-view-tutorial-btn"
-              title="Watch a video guide for this page (coming soon)."
-              aria-label="View video tutorial for this page (placeholder)"
+              data-tutorial-start="0"
+              title="Watch the video tutorial for this page"
+              aria-label="View the video tutorial for this page"
             >
               View Video Tutorial for this Page
             </button>
@@ -1248,8 +1230,9 @@
                   type="button"
                   id="feedback-view-tutorial-btn"
                   class="scenario-view-tutorial-btn panel-howto-tutorial-btn"
-                  title="Watch a video guide for this page (coming soon)."
-                  aria-label="View video tutorial for this page (placeholder)"
+                  data-tutorial-start="0"
+                  title="Watch the video tutorial for this page"
+                  aria-label="View the video tutorial for this page"
                 >
                   View Video Tutorial for this Page
                 </button>
@@ -1884,6 +1867,7 @@
             </p>
           </div>
         </div>
+        <div class="map-legend-stack" id="map-legend-stack">
         <aside
           class="map-density-legend"
           id="map-density-legend"
@@ -1952,6 +1936,37 @@
             </p>
           </div>
         </aside>
+        <aside
+          class="map-travel-shed-legend"
+          id="map-travel-shed-legend"
+          hidden
+          aria-label="Travel shed driving-distance color scale"
+        >
+          <div class="map-travel-shed-legend__header">
+            <span class="map-travel-shed-legend__heading">Travel sheds</span>
+            <button
+              type="button"
+              class="map-travel-shed-legend__collapse"
+              id="map-travel-shed-legend-collapse"
+              aria-expanded="true"
+              aria-label="Collapse the travel shed legend"
+              title="Collapse / expand"
+            >
+              <span class="map-travel-shed-legend__caret" aria-hidden="true"></span>
+            </button>
+          </div>
+          <div class="map-travel-shed-legend__body" id="map-travel-shed-legend-body">
+            <div class="map-travel-shed-legend__title">Driving distance from school</div>
+            <div
+              class="map-travel-shed-legend__scale"
+              id="map-travel-shed-legend-scale"
+              role="img"
+              aria-label="Color scale shading travel sheds by driving distance in miles"
+            ></div>
+            <p class="map-travel-shed-legend__note">Miles by network driving distance</p>
+          </div>
+        </aside>
+        </div>
       </div>
     </div>
     <script src="https://api.mapbox.com/mapbox-gl-js/v3.8.0/mapbox-gl.js"></script>
@@ -1968,10 +1983,15 @@
         var form = document.getElementById("login-form");
         var err = document.getElementById("login-error");
         var input = document.getElementById("login-password");
+        var TUTORIAL_VIDEO_ID = "h_nA9HHqbnc";
+        var TUTORIAL_EMBED_BASE =
+          "https://www.youtube-nocookie.com/embed/" + TUTORIAL_VIDEO_ID;
         var viewTutorialBtn = document.getElementById("view-tutorial-btn");
         var backToDashboardBtn = document.getElementById(
           "welcome-back-to-dashboard-btn"
         );
+        var welcomeVideoIframe = document.getElementById("welcome-video-iframe");
+        var welcomeVideoSection = document.getElementById("welcome-video-section");
 
         function loadApp() {
           if (window.__dashboardAppLoaded) return;
@@ -1999,17 +2019,59 @@
           loadApp();
         }
 
-        function showWelcomeReview() {
+        /** Build the privacy-enhanced YouTube embed URL for a given start time (seconds). */
+        function tutorialEmbedSrc(startSeconds) {
+          var start = Math.max(0, Math.round(Number(startSeconds) || 0));
+          return (
+            TUTORIAL_EMBED_BASE +
+            "?rel=0&start=" +
+            start +
+            (start > 0 ? "&autoplay=0" : "")
+          );
+        }
+
+        /** Point the welcome iframe at the requested start time (default 0:00). */
+        function setWelcomeTutorialStart(startSeconds) {
+          if (!welcomeVideoIframe) return;
+          welcomeVideoIframe.src = tutorialEmbedSrc(startSeconds);
+        }
+
+        /** Scroll the video walkthrough into view after the welcome page is shown. */
+        function scrollWelcomeVideoIntoView() {
+          var target = welcomeVideoSection || welcomeVideoIframe;
+          if (!target || !target.scrollIntoView) return;
+          try {
+            target.scrollIntoView({ behavior: "smooth", block: "start" });
+          } catch (e) {
+            try {
+              target.scrollIntoView(true);
+            } catch (e2) {
+              /* ignore */
+            }
+          }
+        }
+
+        /**
+         * Open the welcome / tutorial view, reset the video to `startSeconds`,
+         * and scroll to the player (paused — user presses play).
+         */
+        function openTutorialView(startSeconds) {
           if (!gate || !dash) return;
           gate.classList.add("login-gate--review");
           gate.hidden = false;
           dash.hidden = true;
           document.body.classList.remove("dashboard-unlocked");
+          setWelcomeTutorialStart(startSeconds);
           try {
             window.scrollTo({ top: 0, behavior: "auto" });
           } catch (e) {
             window.scrollTo(0, 0);
           }
+          setTimeout(scrollWelcomeVideoIntoView, 80);
+        }
+
+        function showWelcomeReview() {
+          openTutorialView(0);
         }
 
         function exitWelcomeReview() {
@@ -2051,6 +2113,24 @@
         if (backToDashboardBtn) {
           backToDashboardBtn.addEventListener("click", exitWelcomeReview);
         }
+
+        /* Per-page "View Video Tutorial for this Page" buttons. All use the same
+           video at 0:00 for now; set data-tutorial-start on each button when
+           page-specific timestamps are ready. */
+        var pageTutorialBtns = document.querySelectorAll(
+          "[data-tutorial-start]"
+        );
+        for (var ti = 0; ti < pageTutorialBtns.length; ti++) {
+          (function (btn) {
+            btn.addEventListener("click", function () {
+              var start = Number(btn.getAttribute("data-tutorial-start"));
+              if (isNaN(start) || start < 0) start = 0;
+              openTutorialView(start);
+            });
+          })(pageTutorialBtns[ti]);
+        }
+
+        window.__openTutorialView = openTutorialView;
 
         /* Landing-page "explore" links. Stash the requested view so the
            dashboard opens straight to it. If the user is already authed

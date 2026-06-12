@@ -377,14 +377,13 @@ body.dashboard-unlocked {
   font-weight: 700;
 }
 
-/* Video tutorial slot: keeps a fixed 16:9 placeholder so swapping in a real
-   YouTube iframe later requires no layout changes. */
+/* Video tutorial slot: fixed 16:9 frame holding the embedded YouTube iframe. */
 .welcome-video-frame {
   position: relative;
   width: 100%;
   aspect-ratio: 16 / 9;
-  background: #f1f5f9;
-  border: 1px dashed #cbd5e1;
+  background: #000;
+  border: 1px solid #e2e8f0;
   border-radius: 10px;
   overflow: hidden;
   display: flex;
@@ -4226,13 +4225,27 @@ button.sandbox-school-expand:hover {
 }
 
 /* Bottom-right of map; above default attribution. Does not block map interaction. */
-.map-density-legend {
+/* Bottom-right stack that holds the residence density and travel shed legends.
+   The stack is pinned to the bottom-right; legends flow upward as they stack so
+   each one keeps its own collapse state. pointer-events are off here so the map
+   stays usable; each legend header re-enables them for its collapse button. */
+.map-legend-stack {
   position: absolute;
   z-index: 2;
   right: 8px;
   left: auto;
   bottom: 32px;
-  max-width: min(240px, calc(100% - 100px));
+  width: min(240px, calc(100% - 100px));
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.map-density-legend,
+.map-travel-shed-legend {
+  width: 100%;
   padding: 8px 10px;
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.94);
@@ -4390,6 +4403,118 @@ button.sandbox-school-expand:hover {
 
 .map-density-legend__val-note {
   margin: 2px 0 0;
+  font-size: 0.6rem;
+  color: #94a3b8;
+  text-align: center;
+}
+
+/* Travel shed legend: mirrors the density legend chrome, but maps the
+   discrete 1–10 mile fill colors (see school-isochrones-fill in app.js)
+   to labeled swatches. */
+.map-travel-shed-legend[hidden] {
+  display: none !important;
+}
+
+.map-travel-shed-legend__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  pointer-events: auto;
+}
+
+.map-travel-shed-legend__heading {
+  font-weight: 700;
+  font-size: 0.74rem;
+  color: #1e293b;
+}
+
+.map-travel-shed-legend__collapse {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin: -2px -2px -2px 0;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #475569;
+  cursor: pointer;
+}
+
+.map-travel-shed-legend__collapse:hover {
+  background: rgba(15, 23, 42, 0.06);
+  color: #0f172a;
+}
+
+.map-travel-shed-legend__collapse:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
+
+.map-travel-shed-legend__caret {
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform 0.15s ease;
+}
+
+.map-travel-shed-legend.is-collapsed .map-travel-shed-legend__caret {
+  transform: translateX(-1px) rotate(-45deg);
+}
+
+.map-travel-shed-legend.is-collapsed .map-travel-shed-legend__body {
+  display: none !important;
+}
+
+.map-travel-shed-legend__body {
+  margin-top: 8px;
+}
+
+.map-travel-shed-legend__title {
+  font-weight: 600;
+  font-size: 0.74rem;
+  margin-bottom: 4px;
+  color: #1e293b;
+}
+
+.map-travel-shed-legend__scale {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.map-travel-shed-legend__swatch {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.map-travel-shed-legend__chip {
+  width: 100%;
+  height: 12px;
+  border-radius: 2px;
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3);
+}
+
+.map-travel-shed-legend__chip-label {
+  font-size: 0.62rem;
+  color: #334155;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.map-travel-shed-legend__note {
+  margin: 4px 0 0;
   font-size: 0.6rem;
   color: #94a3b8;
   text-align: center;
