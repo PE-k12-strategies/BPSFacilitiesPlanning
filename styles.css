@@ -581,6 +581,7 @@ body.dashboard-unlocked {
    is hidden and this button takes its place. */
 .welcome-back-btn {
   max-width: 260px;
+  margin-top: 18px;
 }
 
 .welcome-back-btn[hidden] {
@@ -3729,18 +3730,179 @@ button.sandbox-school-expand:hover {
   }
 }
 
+/* The Map layers menu now lives inside .map-top-controls, which handles the
+   top-right map placement (and keeps the language switch to its left). When
+   relocated into the mobile sheet, .mobile-layers-sheet .toolbar resets these. */
 .toolbar {
-  position: absolute;
+  position: relative;
   z-index: 2;
-  right: 12px;
-  left: auto;
-  top: 12px;
   max-width: min(324px, calc(100% - 24px));
   padding: 0;
   background: rgba(255, 255, 255, 0.94);
   border-radius: 8px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
   overflow: hidden;
+}
+
+/* Top-right map control row: language switch + Map layers menu, side by side.
+   Anchored to the right so the toolbar keeps its corner while the language
+   button sits to its left (and to the left of the panel when expanded). */
+.map-top-controls {
+  position: absolute;
+  z-index: 3;
+  top: 12px;
+  right: 12px;
+  left: auto;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 8px;
+  max-width: calc(100% - 24px);
+}
+
+/* ===== Language switch (custom UI over the Google Translate widget) ===== */
+/* Keep Google's own gadget in the DOM (the combo must exist) but off-screen. */
+#google_translate_element {
+  position: absolute !important;
+  left: -9999px !important;
+  top: -9999px !important;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+/* Suppress Google's injected top banner / tooltips and keep the page flush. */
+.goog-te-banner-frame.skiptranslate,
+.goog-te-gadget-icon,
+#goog-gt-tt,
+.goog-te-balloon-frame {
+  display: none !important;
+}
+
+body {
+  top: 0 !important;
+  position: static !important;
+}
+
+.goog-text-highlight {
+  background: none !important;
+  box-shadow: none !important;
+}
+
+.lang-switch {
+  position: relative;
+  display: inline-block;
+  font-family: "Franklin Gothic Book", "Libre Franklin", sans-serif;
+}
+
+.lang-switch__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 7px 10px;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #111827;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.lang-switch__btn:hover {
+  background: #f3f4f6;
+}
+
+.lang-switch__btn:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
+
+.lang-switch__icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.lang-switch__caret {
+  width: 0.45em;
+  height: 0.45em;
+  border-right: 2px solid #374151;
+  border-bottom: 2px solid #374151;
+  transform: rotate(45deg);
+  margin-top: -0.15em;
+  flex-shrink: 0;
+}
+
+.lang-switch__menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  min-width: 168px;
+  z-index: 30;
+  padding: 4px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+}
+
+.lang-switch__menu[hidden] {
+  display: none !important;
+}
+
+.lang-switch__opt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #1f2937;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.lang-switch__opt:hover {
+  background: #f1f5f9;
+}
+
+.lang-switch__opt.is-active {
+  background: #eef2ff;
+  color: #1d4ed8;
+  font-weight: 700;
+}
+
+.lang-switch__opt.is-active::after {
+  content: "\2713";
+  font-weight: 700;
+}
+
+/* Welcome / tutorial page: right-aligned above the header. */
+.welcome-topbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 6px;
+}
+
+/* On phones the Map layers menu moves into the bottom sheet and the top-right
+   corner is used by the Map/Data toggle, so hide the map language switch there.
+   The welcome-page switch (and the persisted choice) still cover translation. */
+@media (max-width: 540px) and (pointer: coarse) {
+  .map-top-controls .lang-switch {
+    display: none;
+  }
 }
 
 .toolbar-toggle {

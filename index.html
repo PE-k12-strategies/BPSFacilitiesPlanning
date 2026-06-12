@@ -14,7 +14,7 @@
       href="https://api.mapbox.com/mapbox-gl-js/v3.8.0/mapbox-gl.css"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=20260527-6" />
+    <link rel="stylesheet" href="styles.css?v=20260612-2" />
     <script>
       /* Pre-fetch dashboard data files as early as possible so they are warm by
          the time the user finishes reading the welcome page and enters the
@@ -63,8 +63,247 @@
     </script>
   </head>
   <body>
+    <!--
+      Whole-dashboard translation via the Google Website Translate widget. The
+      widget auto-translates every text node (static HTML *and* the charts /
+      popups / tables that app.js builds at runtime), so adding a language here
+      requires no per-string work. We hide Google's default gadget + top banner
+      and drive it from our own language buttons (see .lang-switch below). The
+      chosen language is persisted in localStorage and mirrored to the
+      `googtrans` cookie so it re-applies on reload.
+    -->
+    <div id="google_translate_element" aria-hidden="true"></div>
+    <script>
+      (function () {
+        var LANG_KEY = "brevardDashLang";
+
+        function savedLang() {
+          try {
+            return localStorage.getItem(LANG_KEY) || "en";
+          } catch (e) {
+            return "en";
+          }
+        }
+
+        /* Write the googtrans cookie the widget reads on init so a saved choice
+           re-applies automatically on the next load. Set host-only and
+           domain-scoped variants to cover localhost and hosted domains. */
+        function setGoogTransCookie(lang) {
+          var val = "/en/" + (lang || "en");
+          var base = "googtrans=" + val + "; path=/; max-age=31536000";
+          try {
+            document.cookie = base;
+            var host = location.hostname;
+            if (host && host.indexOf(".") !== -1) {
+              document.cookie = base + "; domain=" + host;
+              var parts = host.split(".");
+              var root =
+                parts.length > 2 ? parts.slice(-2).join(".") : host;
+              document.cookie = base + "; domain=." + root;
+            }
+          } catch (e) {
+            /* ignore */
+          }
+        }
+        window.__brevardSetGoogTransCookie = setGoogTransCookie;
+
+        /* Apply the saved preference before the widget initializes. */
+        var initial = savedLang();
+        if (initial && initial !== "en") {
+          setGoogTransCookie(initial);
+        }
+      })();
+
+      function googleTranslateElementInit() {
+        new google.translate.TranslateElement(
+          {
+            pageLanguage: "en",
+            includedLanguages: "en,es",
+            autoDisplay: false,
+          },
+          "google_translate_element"
+        );
+        if (typeof window.__brevardOnTranslateReady === "function") {
+          window.__brevardOnTranslateReady();
+        }
+      }
+    </script>
+    <script
+      src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"
+    ></script>
+    <script>
+      /* Custom language switcher. Drives the hidden Google combo so we can keep
+         our own small button + dropdown in the welcome page and on the map. */
+      (function () {
+        var LANG_KEY = "brevardDashLang";
+        var LABELS = { en: "English", es: "Espa\u00F1ol" };
+        var current = "en";
+        try {
+          current = localStorage.getItem(LANG_KEY) || "en";
+        } catch (e) {
+          current = "en";
+        }
+        var pendingApply = current !== "en" ? current : null;
+
+        function getCombo() {
+          return document.querySelector(".goog-te-combo");
+        }
+
+        function driveCombo(lang) {
+          var combo = getCombo();
+          if (!combo) return false;
+          combo.value = lang;
+          combo.dispatchEvent(new Event("change"));
+          return true;
+        }
+
+        function closeAllMenus() {
+          var menus = document.querySelectorAll(".lang-switch__menu");
+          for (var i = 0; i < menus.length; i++) menus[i].hidden = true;
+          var btns = document.querySelectorAll(".lang-switch__btn");
+          for (var k = 0; k < btns.length; k++) {
+            btns[k].setAttribute("aria-expanded", "false");
+          }
+        }
+
+        function updateUI() {
+          var switches = document.querySelectorAll("[data-lang-switch]");
+          for (var i = 0; i < switches.length; i++) {
+            var sw = switches[i];
+            var cur = sw.querySelector("[data-lang-current]");
+            if (cur) cur.textContent = LABELS[current] || "English";
+            var opts = sw.querySelectorAll(".lang-switch__opt");
+            for (var j = 0; j < opts.length; j++) {
+              var on = opts[j].getAttribute("data-lang") === current;
+              opts[j].classList.toggle("is-active", on);
+              opts[j].setAttribute("aria-checked", on ? "true" : "false");
+            }
+          }
+        }
+
+        function setLanguage(lang) {
+          if (!LABELS[lang]) lang = "en";
+          current = lang;
+          try {
+            localStorage.setItem(LANG_KEY, lang);
+          } catch (e) {
+            /* ignore */
+          }
+          if (typeof window.__brevardSetGoogTransCookie === "function") {
+            window.__brevardSetGoogTransCookie(lang);
+          }
+          if (!driveCombo(lang)) {
+            /* Widget not ready yet; the cookie will auto-apply on its init. */
+            pendingApply = lang;
+          }
+          updateUI();
+          closeAllMenus();
+        }
+
+        function applyPending() {
+          if (!pendingApply) return;
+          var tries = 0;
+          var timer = setInterval(function () {
+            tries++;
+            if (driveCombo(pendingApply) || tries > 25) {
+              clearInterval(timer);
+              pendingApply = null;
+            }
+          }, 150);
+        }
+
+        /* Called by googleTranslateElementInit once the combo exists. */
+        window.__brevardOnTranslateReady = function () {
+          applyPending();
+          updateUI();
+        };
+
+        function wire() {
+          var switches = document.querySelectorAll("[data-lang-switch]");
+          for (var i = 0; i < switches.length; i++) {
+            (function (sw) {
+              var btn = sw.querySelector(".lang-switch__btn");
+              var menu = sw.querySelector(".lang-switch__menu");
+              if (btn && menu) {
+                btn.addEventListener("click", function (e) {
+                  e.stopPropagation();
+                  var willOpen = menu.hidden;
+                  closeAllMenus();
+                  menu.hidden = !willOpen;
+                  btn.setAttribute(
+                    "aria-expanded",
+                    willOpen ? "true" : "false"
+                  );
+                });
+              }
+              var opts = sw.querySelectorAll(".lang-switch__opt");
+              for (var j = 0; j < opts.length; j++) {
+                (function (opt) {
+                  opt.addEventListener("click", function (e) {
+                    e.stopPropagation();
+                    setLanguage(opt.getAttribute("data-lang"));
+                  });
+                })(opts[j]);
+              }
+            })(switches[i]);
+          }
+          document.addEventListener("click", closeAllMenus);
+          document.addEventListener("keydown", function (e) {
+            if (e.key === "Escape") closeAllMenus();
+          });
+          updateUI();
+          /* If the widget loaded before this script wired up, apply now. */
+          if (pendingApply && getCombo()) applyPending();
+        }
+
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", wire);
+        } else {
+          wire();
+        }
+      })();
+    </script>
     <div id="login-gate" class="login-gate login-gate--welcome">
       <div class="login-gate__inner login-gate__inner--welcome">
+        <div class="welcome-topbar">
+          <div
+            class="lang-switch lang-switch--welcome notranslate"
+            translate="no"
+            data-lang-switch
+          >
+            <button
+              type="button"
+              class="lang-switch__btn"
+              aria-haspopup="true"
+              aria-expanded="false"
+              title="Choose language / Elegir idioma"
+            >
+              <span class="lang-switch__icon" aria-hidden="true">&#127760;</span>
+              <span class="lang-switch__current" data-lang-current>English</span>
+              <span class="lang-switch__caret" aria-hidden="true"></span>
+            </button>
+            <div class="lang-switch__menu" role="menu" hidden>
+              <button
+                type="button"
+                class="lang-switch__opt"
+                role="menuitemradio"
+                aria-checked="true"
+                data-lang="en"
+              >
+                English
+              </button>
+              <button
+                type="button"
+                class="lang-switch__opt"
+                role="menuitemradio"
+                aria-checked="false"
+                data-lang="es"
+              >
+                Espa&ntilde;ol
+              </button>
+            </div>
+          </div>
+        </div>
         <header class="welcome-header">
           <img
             class="welcome-header__logo"
@@ -129,6 +368,14 @@
               <strong>Fall 2026</strong>, after which the project team will
               compile the data and present the results to the community.
             </p>
+            <button
+              type="button"
+              id="welcome-back-to-dashboard-btn"
+              class="login-gate__submit welcome-back-btn"
+              hidden
+            >
+              Back to Dashboard
+            </button>
           </div>
 
           <div class="welcome-hero__right" id="welcome-video-section">
@@ -137,7 +384,7 @@
               <iframe
                 id="welcome-video-iframe"
                 class="welcome-video-iframe"
-                src="https://www.youtube-nocookie.com/embed/h_nA9HHqbnc?rel=0&amp;start=0"
+                src="https://www.youtube-nocookie.com/embed/c952IvafLgU?rel=0&amp;start=0&amp;enablejsapi=1"
                 title="District Exploration Dashboard tutorial"
                 frameborder="0"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -237,14 +484,6 @@
               <button type="submit" class="login-gate__submit">Enter Dashboard</button>
             </form>
           </div>
-          <button
-            type="button"
-            id="welcome-back-to-dashboard-btn"
-            class="login-gate__submit welcome-back-btn"
-            hidden
-          >
-            Back to Dashboard
-          </button>
         </section>
       </div>
     </div>
@@ -374,7 +613,7 @@
               type="button"
               id="existing-view-tutorial-btn"
               class="scenario-view-tutorial-btn panel-howto-tutorial-btn"
-              data-tutorial-start="0"
+              data-tutorial-start="165"
               title="Watch the video tutorial for this page"
               aria-label="View the video tutorial for this page"
             >
@@ -665,7 +904,8 @@
               type="button"
               id="scenario-view-tutorial-btn"
               class="scenario-view-tutorial-btn"
-              data-tutorial-start="0"
+              data-tutorial-start="353"
+              data-tutorial-start-sandbox="483"
               title="Watch the video tutorial for this page"
               aria-label="View the video tutorial for this page"
             >
@@ -1230,7 +1470,7 @@
                   type="button"
                   id="feedback-view-tutorial-btn"
                   class="scenario-view-tutorial-btn panel-howto-tutorial-btn"
-                  data-tutorial-start="0"
+                  data-tutorial-start="662"
                   title="Watch the video tutorial for this page"
                   aria-label="View the video tutorial for this page"
                 >
@@ -1630,6 +1870,44 @@
       ></div>
 
       <div class="dashboard-map-wrap">
+        <div class="map-top-controls" id="map-top-controls">
+          <div
+            class="lang-switch lang-switch--map notranslate"
+            translate="no"
+            data-lang-switch
+          >
+            <button
+              type="button"
+              class="lang-switch__btn"
+              aria-haspopup="true"
+              aria-expanded="false"
+              title="Choose language / Elegir idioma"
+            >
+              <span class="lang-switch__icon" aria-hidden="true">&#127760;</span>
+              <span class="lang-switch__current" data-lang-current>English</span>
+              <span class="lang-switch__caret" aria-hidden="true"></span>
+            </button>
+            <div class="lang-switch__menu" role="menu" hidden>
+              <button
+                type="button"
+                class="lang-switch__opt"
+                role="menuitemradio"
+                aria-checked="true"
+                data-lang="en"
+              >
+                English
+              </button>
+              <button
+                type="button"
+                class="lang-switch__opt"
+                role="menuitemradio"
+                aria-checked="false"
+                data-lang="es"
+              >
+                Espa&ntilde;ol
+              </button>
+            </div>
+          </div>
         <header class="toolbar toolbar--collapsed" id="toolbar">
           <button
             type="button"
@@ -1849,6 +2127,7 @@
             </div>
           </div>
         </header>
+        </div>
         <div id="map" role="application" aria-label="Interactive map"></div>
         <div
           id="map-loading-overlay"
@@ -1983,7 +2262,7 @@
         var form = document.getElementById("login-form");
         var err = document.getElementById("login-error");
         var input = document.getElementById("login-password");
-        var TUTORIAL_VIDEO_ID = "h_nA9HHqbnc";
+        var TUTORIAL_VIDEO_ID = "c952IvafLgU";
         var TUTORIAL_EMBED_BASE =
           "https://www.youtube-nocookie.com/embed/" + TUTORIAL_VIDEO_ID;
         var viewTutorialBtn = document.getElementById("view-tutorial-btn");
@@ -2010,6 +2289,7 @@
 
         function enterDashboard() {
           sessionStorage.setItem(AUTH_KEY, "1");
+          pauseWelcomeVideo();
           if (gate) {
             gate.classList.remove("login-gate--review");
             gate.hidden = true;
@@ -2019,21 +2299,39 @@
           loadApp();
         }
 
-        /** Build the privacy-enhanced YouTube embed URL for a given start time (seconds). */
-        function tutorialEmbedSrc(startSeconds) {
+        /** Build the privacy-enhanced YouTube embed URL for a given start time (seconds).
+         *  enablejsapi=1 lets us pause the player via postMessage when the user
+         *  leaves the tutorial page. When autoplay is true the video starts
+         *  playing with sound (used by the per-page tutorial buttons). */
+        function tutorialEmbedSrc(startSeconds, autoplay) {
           var start = Math.max(0, Math.round(Number(startSeconds) || 0));
           return (
             TUTORIAL_EMBED_BASE +
-            "?rel=0&start=" +
+            "?rel=0&enablejsapi=1&start=" +
             start +
-            (start > 0 ? "&autoplay=0" : "")
+            "&autoplay=" +
+            (autoplay ? "1" : "0")
           );
         }
 
-        /** Point the welcome iframe at the requested start time (default 0:00). */
-        function setWelcomeTutorialStart(startSeconds) {
+        /** Pause the welcome/tutorial video (YouTube IFrame API via postMessage). */
+        function pauseWelcomeVideo() {
+          if (!welcomeVideoIframe || !welcomeVideoIframe.contentWindow) return;
+          try {
+            welcomeVideoIframe.contentWindow.postMessage(
+              '{"event":"command","func":"pauseVideo","args":""}',
+              "*"
+            );
+          } catch (e) {
+            /* ignore */
+          }
+        }
+
+        /** Point the welcome iframe at the requested start time (default 0:00),
+         *  optionally auto-playing with sound. */
+        function setWelcomeTutorialStart(startSeconds, autoplay) {
           if (!welcomeVideoIframe) return;
-          welcomeVideoIframe.src = tutorialEmbedSrc(startSeconds);
+          welcomeVideoIframe.src = tutorialEmbedSrc(startSeconds, autoplay);
         }
 
         /** Scroll the video walkthrough into view after the welcome page is shown. */
@@ -2053,15 +2351,17 @@
 
         /**
          * Open the welcome / tutorial view, reset the video to `startSeconds`,
-         * and scroll to the player (paused — user presses play).
+         * and scroll to the player. When `autoplay` is true the video starts
+         * playing with sound (per-page tutorial buttons); otherwise it stays
+         * paused/cued (the header "View Tutorial" button).
          */
-        function openTutorialView(startSeconds) {
+        function openTutorialView(startSeconds, autoplay) {
           if (!gate || !dash) return;
           gate.classList.add("login-gate--review");
           gate.hidden = false;
           dash.hidden = true;
           document.body.classList.remove("dashboard-unlocked");
-          setWelcomeTutorialStart(startSeconds);
+          setWelcomeTutorialStart(startSeconds, autoplay);
           try {
             window.scrollTo({ top: 0, behavior: "auto" });
           } catch (e) {
@@ -2071,11 +2371,12 @@
         }
 
         function showWelcomeReview() {
-          openTutorialView(0);
+          openTutorialView(0, false);
         }
 
         function exitWelcomeReview() {
           if (!gate || !dash) return;
+          pauseWelcomeVideo();
           gate.classList.remove("login-gate--review");
           gate.hidden = true;
           dash.hidden = false;
@@ -2114,18 +2415,36 @@
           backToDashboardBtn.addEventListener("click", exitWelcomeReview);
         }
 
-        /* Per-page "View Video Tutorial for this Page" buttons. All use the same
-           video at 0:00 for now; set data-tutorial-start on each button when
-           page-specific timestamps are ready. */
+        /* Per-page "View Video Tutorial for this Page" buttons jump to the
+           tutorial page and cue the video to that page's timestamp (in seconds,
+           via data-tutorial-start). The Scenario Planning button also carries
+           data-tutorial-start-sandbox: when the Boundary Sandbox sub-tab is the
+           active sub-view, that timestamp is used instead of the Enrollment
+           Planning one. */
+        function tutorialStartForButton(btn) {
+          var sandboxStart = btn.getAttribute("data-tutorial-start-sandbox");
+          if (sandboxStart != null) {
+            var sandboxPanel = document.getElementById(
+              "scenario-subpanel-sandbox"
+            );
+            if (sandboxPanel && !sandboxPanel.hidden) {
+              var sbx = Number(sandboxStart);
+              if (!isNaN(sbx) && sbx >= 0) return sbx;
+            }
+          }
+          var start = Number(btn.getAttribute("data-tutorial-start"));
+          if (isNaN(start) || start < 0) start = 0;
+          return start;
+        }
+
         var pageTutorialBtns = document.querySelectorAll(
           "[data-tutorial-start]"
         );
         for (var ti = 0; ti < pageTutorialBtns.length; ti++) {
           (function (btn) {
             btn.addEventListener("click", function () {
-              var start = Number(btn.getAttribute("data-tutorial-start"));
-              if (isNaN(start) || start < 0) start = 0;
-              openTutorialView(start);
+              /* Per-page buttons auto-play with sound at the page timestamp. */
+              openTutorialView(tutorialStartForButton(btn), true);
             });
           })(pageTutorialBtns[ti]);
         }
