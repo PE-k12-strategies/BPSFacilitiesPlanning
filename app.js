@@ -1473,10 +1473,10 @@
     var el = document.getElementById("map-loading-overlay");
     if (!el) return;
     el.classList.remove("is-hidden");
-    var t = el.querySelector(".map-loading-overlay__title");
+    var t = document.getElementById("map-loading-overlay-title-text");
     var h = el.querySelector(".map-loading-overlay__hint");
-    if (t) t.textContent = title;
-    if (h) h.textContent = hint;
+    if (t && title != null) t.textContent = title;
+    if (h && hint != null) h.textContent = hint;
   }
 
   function hideMapLoadingOverlay() {
@@ -17704,7 +17704,13 @@
     function isPlaceholderOption(value, label) {
       if (value == null || value === "") return true;
       if (!label) return false;
-      return /^(Loading|Select a school|Start from school)/i.test(label);
+      return /^(Loading schools|Loading|Select a school|Start from school)/i.test(
+        label
+      );
+    }
+
+    function isLoadingPlaceholderLabel(label) {
+      return /^Loading schools/i.test(label || "");
     }
 
     function setup(sel) {
@@ -17778,7 +17784,35 @@
         if (isOpen) applyFilter();
       }
 
+      function isLoadingState() {
+        if (!sel.disabled) return false;
+        for (var i = 0; i < options.length; i++) {
+          var o = options[i];
+          if (o.isPlaceholder && isLoadingPlaceholderLabel(o.label)) {
+            return true;
+          }
+        }
+        return options.length <= 1;
+      }
+
+      function syncTriggerDisabledState() {
+        var loading = isLoadingState();
+        trigger.disabled = !!sel.disabled;
+        trigger.setAttribute("aria-busy", loading ? "true" : "false");
+        if (loading) {
+          trigger.setAttribute("aria-disabled", "true");
+        } else {
+          trigger.removeAttribute("aria-disabled");
+        }
+      }
+
       function syncTriggerText() {
+        syncTriggerDisabledState();
+        if (isLoadingState()) {
+          triggerText.textContent = "Loading schools\u2026";
+          triggerText.classList.add("is-placeholder");
+          return;
+        }
         var current = null;
         for (var i = 0; i < options.length; i++) {
           if (options[i].value === sel.value && !options[i].isPlaceholder) {

@@ -538,32 +538,21 @@ body.dashboard-unlocked {
   margin-bottom: 6px;
 }
 
-.welcome-section--auth {
-  margin-top: 8px;
-  padding-top: 24px;
-  border-top: 1px solid #e5e7eb;
-}
-
-.welcome-auth-hint {
-  margin: 0 0 14px;
-  font-family: "Franklin Gothic Book", "Libre Franklin", sans-serif;
-  font-size: 0.95rem;
-  font-weight: 500;
-  line-height: 1.45;
-  color: #4b5563;
+.welcome-enter-block {
+  margin-top: 18px;
 }
 
 .welcome-device-note {
-  margin: 0 0 16px;
+  margin: 0 0 14px;
   padding: 10px 14px;
   border-left: 4px solid var(--brand-pe-orange);
   border-radius: 6px;
   background: #fff6ed;
   font-family: "Franklin Gothic Book", "Libre Franklin", sans-serif;
-  font-size: 0.9rem;
+  font-size: 1rem;
   font-weight: 500;
-  line-height: 1.45;
-  color: #7c3a06;
+  line-height: 1.55;
+  color: #1f2937;
 }
 
 .welcome-device-note strong {
@@ -571,14 +560,15 @@ body.dashboard-unlocked {
   font-weight: 700;
 }
 
-.welcome-form {
+.welcome-form,
+.welcome-enter-btn {
   max-width: 360px;
 }
 
 /* "Back to Dashboard" button shown only when the welcome page is being
    re-opened as a tutorial review (the `.login-gate--review` modifier is
-   toggled by the View Tutorial button). In review mode the password form
-   is hidden and this button takes its place. */
+   toggled by the View Tutorial button). In review mode the enter block is
+   hidden and this button takes its place. */
 .welcome-back-btn {
   max-width: 260px;
   margin-top: 18px;
@@ -588,7 +578,7 @@ body.dashboard-unlocked {
   display: none !important;
 }
 
-.login-gate--review .welcome-auth-primary {
+.login-gate--review .welcome-enter-block {
   display: none;
 }
 
@@ -2920,8 +2910,14 @@ button.sandbox-school-expand:hover {
   outline-offset: 1px;
 }
 
-.school-select-wrap.is-searchable .school-select:disabled ~ .searchable-select__trigger {
-  display: none;
+.searchable-select__trigger:disabled {
+  cursor: default;
+  opacity: 1;
+  color: #4b5563;
+}
+
+.searchable-select__trigger:disabled:hover {
+  background: #f3f4f6;
 }
 
 .searchable-select__trigger-text {
@@ -3755,7 +3751,7 @@ button.sandbox-school-expand:hover {
   left: auto;
   display: flex;
   flex-direction: row;
-  align-items: flex-start;
+  align-items: center;
   justify-content: flex-end;
   gap: 8px;
   max-width: calc(100% - 24px);
@@ -3894,6 +3890,16 @@ body {
   display: flex;
   justify-content: flex-end;
   margin-bottom: 6px;
+}
+
+/* Map control row: match the collapsed Map layers toggle height (10px × 12px
+   padding, 0.88rem type). Lang button has a 1px border so vertical padding is
+   9px to keep the same outer height as the borderless toolbar toggle. */
+.lang-switch--map .lang-switch__btn {
+  padding: 9px 12px;
+  font-size: 0.88rem;
+  line-height: 1.25;
+  box-sizing: border-box;
 }
 
 /* On phones the Map layers menu moves into the bottom sheet and the top-right

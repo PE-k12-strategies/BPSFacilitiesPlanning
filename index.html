@@ -6,6 +6,11 @@
     <title>Brevard County Public Schools | District Exploration Dashboard</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://api.mapbox.com" crossorigin />
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+    <link rel="preconnect" href="https://unpkg.com" crossorigin />
+    <link rel="preconnect" href="https://www.youtube-nocookie.com" crossorigin />
+    <link rel="preconnect" href="https://translate.google.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Libre+Franklin:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap"
       rel="stylesheet"
@@ -14,18 +19,33 @@
       href="https://api.mapbox.com/mapbox-gl-js/v3.8.0/mapbox-gl.css"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=20260612-2" />
+    <link rel="stylesheet" href="styles.css?v=20260612-6" />
     <script>
-      /* Pre-fetch dashboard data files as early as possible so they are warm by
-         the time the user finishes reading the welcome page and enters the
-         password. Promises are stashed on window.__prefetchPromises so the main
-         app.js code can pick them up instead of issuing fresh network requests.
-         Each promise resolves to the parsed JSON object (or raw CSV text), or
-         to null/'' if the request failed — preserving the existing app.js
-         fallback semantics. */
+      /* Pre-fetch dashboard data files as early as possible — as soon as the
+         welcome / tutorial page loads — so heavy GeoJSON and school stats are
+         warm before the user clicks Enter Dashboard. Promises are stashed on
+         window.__prefetchPromises so app.js reuses them via smartFetch(). */
       (function () {
         if (typeof fetch !== "function") return;
         window.__prefetchPromises = window.__prefetchPromises || Object.create(null);
+
+        function prefetch(path, parseAs) {
+          if (window.__prefetchPromises[path]) {
+            return window.__prefetchPromises[path];
+          }
+          window.__prefetchPromises[path] = fetch(path)
+            .then(function (r) {
+              if (!r || !r.ok) {
+                return parseAs === "text" ? "" : null;
+              }
+              return parseAs === "text" ? r.text() : r.json();
+            })
+            .catch(function () {
+              return parseAs === "text" ? "" : null;
+            });
+          return window.__prefetchPromises[path];
+        }
+
         var files = [
           ["geo/SchoolLocations.json", "json"],
           ["geo/ESBoundaries.json", "json"],
@@ -42,227 +62,166 @@
           ["data/processed/meadowlane_capture_override.json", "json"],
           ["data/processed/ese_feeder_matrix.json", "json"],
           ["geo/SchoolIsochrones.geojson", "json"],
-          ["data/processed/bps_employee_count_by_msid.json", "json"]
+          ["data/processed/bps_employee_count_by_msid.json", "json"],
+          ["data/processed/school_master_index.json", "json"],
+          ["data/school_master.csv", "text"]
         ];
-        files.forEach(function (entry) {
-          var path = entry[0];
-          var parseAs = entry[1];
-          if (window.__prefetchPromises[path]) return;
-          window.__prefetchPromises[path] = fetch(path)
-            .then(function (r) {
-              if (!r || !r.ok) {
-                return parseAs === "text" ? "" : null;
-              }
-              return parseAs === "text" ? r.text() : r.json();
-            })
-            .catch(function () {
-              return parseAs === "text" ? "" : null;
-            });
+        for (var fi = 0; fi < files.length; fi++) {
+          prefetch(files[fi][0], files[fi][1]);
+        }
+
+        /* Enrollment master stats: once the shard index resolves, prefetch every shard. */
+        prefetch("data/processed/school_master_index.json", "json").then(function (idx) {
+          if (!idx || !idx.shards || !idx.shards.length) return;
+          for (var si = 0; si < idx.shards.length; si++) {
+            prefetch(idx.shards[si], "json");
+          }
         });
+      })();
+    </script>
+    <script>
+      /* Welcome navigation — runs in <head> so Enter Dashboard and explore
+         links are clickable as soon as the button exists in the DOM, without
+         waiting for the full dashboard markup or Mapbox to load. */
+      (function () {
+        var ENTERED_KEY = "brevardK8DashEntered";
+        var PENDING_NAV_KEY = "brevardK8PendingNav";
+
+        function loadApp() {
+          if (window.__dashboardAppLoaded) return;
+          if (typeof mapboxgl === "undefined") {
+            if (!window.__loadAppQueued) {
+              window.__loadAppQueued = true;
+              var waitForMapbox = setInterval(function () {
+                if (typeof mapboxgl !== "undefined") {
+                  clearInterval(waitForMapbox);
+                  window.__loadAppQueued = false;
+                  loadApp();
+                }
+              }, 30);
+            }
+            return;
+          }
+          window.__dashboardAppLoaded = true;
+          function appendAppScript() {
+            var s = document.createElement("script");
+            s.src = "app.js";
+            document.body.appendChild(s);
+          }
+          var config = document.createElement("script");
+          config.src = "config.local.js";
+          config.onerror = appendAppScript;
+          config.onload = appendAppScript;
+          document.body.appendChild(config);
+        }
+        window.__loadDashboardApp = loadApp;
+
+        function pauseWelcomeVideo() {
+          var iframe = document.getElementById("welcome-video-iframe");
+          if (!iframe || !iframe.contentWindow) return;
+          try {
+            iframe.contentWindow.postMessage(
+              '{"event":"command","func":"pauseVideo","args":""}',
+              "*"
+            );
+          } catch (e) {
+            /* ignore */
+          }
+        }
+
+        function enterDashboard() {
+          try {
+            sessionStorage.setItem(ENTERED_KEY, "1");
+          } catch (e) {
+            /* ignore */
+          }
+          pauseWelcomeVideo();
+          var gate = document.getElementById("login-gate");
+          var dash = document.getElementById("dashboard");
+          if (!dash) {
+            setTimeout(enterDashboard, 0);
+            return;
+          }
+          if (gate) {
+            gate.classList.remove("login-gate--review");
+            gate.hidden = true;
+          }
+          dash.hidden = false;
+          document.body.classList.add("dashboard-unlocked");
+          loadApp();
+        }
+        window.__enterDashboard = enterDashboard;
+
+        function requestDashboardView(page, subtab) {
+          if (!page) return;
+          try {
+            sessionStorage.setItem(
+              PENDING_NAV_KEY,
+              JSON.stringify({ page: page, subtab: subtab || null })
+            );
+          } catch (e) {
+            /* ignore */
+          }
+          enterDashboard();
+          if (
+            window.__dashboardAppLoaded &&
+            typeof window.__applyPendingDashboardNav === "function"
+          ) {
+            setTimeout(function () {
+              try {
+                window.__applyPendingDashboardNav();
+              } catch (e) {
+                /* ignore */
+              }
+            }, 0);
+          }
+        }
+
+        document.addEventListener(
+          "click",
+          function (e) {
+            var t = e.target;
+            if (!t || !t.closest) return;
+            if (t.closest("#enter-dashboard-btn")) {
+              e.preventDefault();
+              enterDashboard();
+              return;
+            }
+            var explore = t.closest(".welcome-explore__link[data-nav-page]");
+            if (explore) {
+              e.preventDefault();
+              requestDashboardView(
+                explore.getAttribute("data-nav-page"),
+                explore.getAttribute("data-nav-subtab")
+              );
+            }
+          },
+          true
+        );
+
+        function initSessionRestore() {
+          try {
+            if (sessionStorage.getItem(ENTERED_KEY) === "1") {
+              var gate = document.getElementById("login-gate");
+              var dash = document.getElementById("dashboard");
+              if (gate) gate.hidden = true;
+              if (dash) dash.hidden = false;
+              document.body.classList.add("dashboard-unlocked");
+              loadApp();
+            }
+          } catch (e) {
+            /* ignore */
+          }
+        }
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", initSessionRestore);
+        } else {
+          initSessionRestore();
+        }
       })();
     </script>
   </head>
   <body>
-    <!--
-      Whole-dashboard translation via the Google Website Translate widget. The
-      widget auto-translates every text node (static HTML *and* the charts /
-      popups / tables that app.js builds at runtime), so adding a language here
-      requires no per-string work. We hide Google's default gadget + top banner
-      and drive it from our own language buttons (see .lang-switch below). The
-      chosen language is persisted in localStorage and mirrored to the
-      `googtrans` cookie so it re-applies on reload.
-    -->
-    <div id="google_translate_element" aria-hidden="true"></div>
-    <script>
-      (function () {
-        var LANG_KEY = "brevardDashLang";
-
-        function savedLang() {
-          try {
-            return localStorage.getItem(LANG_KEY) || "en";
-          } catch (e) {
-            return "en";
-          }
-        }
-
-        /* Write the googtrans cookie the widget reads on init so a saved choice
-           re-applies automatically on the next load. Set host-only and
-           domain-scoped variants to cover localhost and hosted domains. */
-        function setGoogTransCookie(lang) {
-          var val = "/en/" + (lang || "en");
-          var base = "googtrans=" + val + "; path=/; max-age=31536000";
-          try {
-            document.cookie = base;
-            var host = location.hostname;
-            if (host && host.indexOf(".") !== -1) {
-              document.cookie = base + "; domain=" + host;
-              var parts = host.split(".");
-              var root =
-                parts.length > 2 ? parts.slice(-2).join(".") : host;
-              document.cookie = base + "; domain=." + root;
-            }
-          } catch (e) {
-            /* ignore */
-          }
-        }
-        window.__brevardSetGoogTransCookie = setGoogTransCookie;
-
-        /* Apply the saved preference before the widget initializes. */
-        var initial = savedLang();
-        if (initial && initial !== "en") {
-          setGoogTransCookie(initial);
-        }
-      })();
-
-      function googleTranslateElementInit() {
-        new google.translate.TranslateElement(
-          {
-            pageLanguage: "en",
-            includedLanguages: "en,es",
-            autoDisplay: false,
-          },
-          "google_translate_element"
-        );
-        if (typeof window.__brevardOnTranslateReady === "function") {
-          window.__brevardOnTranslateReady();
-        }
-      }
-    </script>
-    <script
-      src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"
-    ></script>
-    <script>
-      /* Custom language switcher. Drives the hidden Google combo so we can keep
-         our own small button + dropdown in the welcome page and on the map. */
-      (function () {
-        var LANG_KEY = "brevardDashLang";
-        var LABELS = { en: "English", es: "Espa\u00F1ol" };
-        var current = "en";
-        try {
-          current = localStorage.getItem(LANG_KEY) || "en";
-        } catch (e) {
-          current = "en";
-        }
-        var pendingApply = current !== "en" ? current : null;
-
-        function getCombo() {
-          return document.querySelector(".goog-te-combo");
-        }
-
-        function driveCombo(lang) {
-          var combo = getCombo();
-          if (!combo) return false;
-          combo.value = lang;
-          combo.dispatchEvent(new Event("change"));
-          return true;
-        }
-
-        function closeAllMenus() {
-          var menus = document.querySelectorAll(".lang-switch__menu");
-          for (var i = 0; i < menus.length; i++) menus[i].hidden = true;
-          var btns = document.querySelectorAll(".lang-switch__btn");
-          for (var k = 0; k < btns.length; k++) {
-            btns[k].setAttribute("aria-expanded", "false");
-          }
-        }
-
-        function updateUI() {
-          var switches = document.querySelectorAll("[data-lang-switch]");
-          for (var i = 0; i < switches.length; i++) {
-            var sw = switches[i];
-            var cur = sw.querySelector("[data-lang-current]");
-            if (cur) cur.textContent = LABELS[current] || "English";
-            var opts = sw.querySelectorAll(".lang-switch__opt");
-            for (var j = 0; j < opts.length; j++) {
-              var on = opts[j].getAttribute("data-lang") === current;
-              opts[j].classList.toggle("is-active", on);
-              opts[j].setAttribute("aria-checked", on ? "true" : "false");
-            }
-          }
-        }
-
-        function setLanguage(lang) {
-          if (!LABELS[lang]) lang = "en";
-          current = lang;
-          try {
-            localStorage.setItem(LANG_KEY, lang);
-          } catch (e) {
-            /* ignore */
-          }
-          if (typeof window.__brevardSetGoogTransCookie === "function") {
-            window.__brevardSetGoogTransCookie(lang);
-          }
-          if (!driveCombo(lang)) {
-            /* Widget not ready yet; the cookie will auto-apply on its init. */
-            pendingApply = lang;
-          }
-          updateUI();
-          closeAllMenus();
-        }
-
-        function applyPending() {
-          if (!pendingApply) return;
-          var tries = 0;
-          var timer = setInterval(function () {
-            tries++;
-            if (driveCombo(pendingApply) || tries > 25) {
-              clearInterval(timer);
-              pendingApply = null;
-            }
-          }, 150);
-        }
-
-        /* Called by googleTranslateElementInit once the combo exists. */
-        window.__brevardOnTranslateReady = function () {
-          applyPending();
-          updateUI();
-        };
-
-        function wire() {
-          var switches = document.querySelectorAll("[data-lang-switch]");
-          for (var i = 0; i < switches.length; i++) {
-            (function (sw) {
-              var btn = sw.querySelector(".lang-switch__btn");
-              var menu = sw.querySelector(".lang-switch__menu");
-              if (btn && menu) {
-                btn.addEventListener("click", function (e) {
-                  e.stopPropagation();
-                  var willOpen = menu.hidden;
-                  closeAllMenus();
-                  menu.hidden = !willOpen;
-                  btn.setAttribute(
-                    "aria-expanded",
-                    willOpen ? "true" : "false"
-                  );
-                });
-              }
-              var opts = sw.querySelectorAll(".lang-switch__opt");
-              for (var j = 0; j < opts.length; j++) {
-                (function (opt) {
-                  opt.addEventListener("click", function (e) {
-                    e.stopPropagation();
-                    setLanguage(opt.getAttribute("data-lang"));
-                  });
-                })(opts[j]);
-              }
-            })(switches[i]);
-          }
-          document.addEventListener("click", closeAllMenus);
-          document.addEventListener("keydown", function (e) {
-            if (e.key === "Escape") closeAllMenus();
-          });
-          updateUI();
-          /* If the widget loaded before this script wired up, apply now. */
-          if (pendingApply && getCombo()) applyPending();
-        }
-
-        if (document.readyState === "loading") {
-          document.addEventListener("DOMContentLoaded", wire);
-        } else {
-          wire();
-        }
-      })();
-    </script>
     <div id="login-gate" class="login-gate login-gate--welcome">
       <div class="login-gate__inner login-gate__inner--welcome">
         <div class="welcome-topbar">
@@ -368,6 +327,20 @@
               <strong>Fall 2026</strong>, after which the project team will
               compile the data and present the results to the community.
             </p>
+            <div class="welcome-enter-block" id="welcome-enter-block">
+              <p class="welcome-device-note" role="note">
+                <strong>For the best experience,</strong> use a desktop, laptop, or
+                tablet. This dashboard is not well-suited to smartphones or other
+                small mobile devices.
+              </p>
+              <button
+                type="button"
+                id="enter-dashboard-btn"
+                class="login-gate__submit welcome-enter-btn"
+              >
+                Enter Dashboard
+              </button>
+            </div>
             <button
               type="button"
               id="welcome-back-to-dashboard-btn"
@@ -454,37 +427,6 @@
             </div>
           </div>
         </div>
-
-        <section class="welcome-section welcome-section--auth">
-          <div class="welcome-auth-primary">
-            <h2 class="welcome-section__title">Enter the dashboard</h2>
-            <p class="welcome-auth-hint">
-              Enter the dashboard password to continue. This password gate will
-              be removed once publicized.
-            </p>
-            <p class="welcome-device-note" role="note">
-              <strong>For the best experience,</strong> use a desktop, laptop, or
-              tablet. This dashboard is not well-suited to smartphones or other
-              small mobile devices.
-            </p>
-            <form id="login-form" class="login-gate__form welcome-form" novalidate>
-              <label class="visually-hidden" for="login-password">Password</label>
-              <input
-                type="password"
-                id="login-password"
-                class="login-gate__input"
-                name="password"
-                placeholder="Enter password"
-                autocomplete="current-password"
-                required
-              />
-              <p id="login-error" class="login-gate__error" role="alert" hidden>
-                Incorrect password.
-              </p>
-              <button type="submit" class="login-gate__submit">Enter Dashboard</button>
-            </form>
-          </div>
-        </section>
       </div>
     </div>
 
@@ -625,7 +567,7 @@
             <label class="visually-hidden" for="school-select">Select a school</label>
             <div class="school-select-wrap">
               <select id="school-select" class="school-select" disabled>
-                <option value="">Loading schools</option>
+                <option value="">Loading schools…</option>
               </select>
             </div>
           </div>
@@ -981,7 +923,7 @@
             <label class="visually-hidden" for="scenario-school-select">Select a base receiving school</label>
             <div class="school-select-wrap">
               <select id="scenario-school-select" class="school-select" disabled>
-                <option value="">Loading</option>
+                <option value="">Loading schools…</option>
               </select>
             </div>
           </div>
@@ -2136,7 +2078,7 @@
           aria-live="polite"
         >
           <div class="map-loading-overlay__card">
-            <p class="map-loading-overlay__title">
+            <p class="map-loading-overlay__title" id="map-loading-overlay-title-text">
               Loading school data<span class="loading-ellipsis" aria-hidden="true"></span>
             </p>
             <p class="map-loading-overlay__hint">
@@ -2248,20 +2190,11 @@
         </div>
       </div>
     </div>
-    <script src="https://api.mapbox.com/mapbox-gl-js/v3.8.0/mapbox-gl.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@7.2.0/turf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
-    <script src="https://unpkg.com/d3-sankey@0.12.3/dist/d3-sankey.min.js"></script>
     <script>
+      /* Tutorial / video controls. Enter Dashboard + explore links wire from <head>. */
       (function () {
-        var AUTH_KEY = "brevardK8DashAuth";
-        var PENDING_NAV_KEY = "brevardK8PendingNav";
-        var PASSWORD = "BrevardK8";
         var gate = document.getElementById("login-gate");
         var dash = document.getElementById("dashboard");
-        var form = document.getElementById("login-form");
-        var err = document.getElementById("login-error");
-        var input = document.getElementById("login-password");
         var TUTORIAL_VIDEO_ID = "c952IvafLgU";
         var TUTORIAL_EMBED_BASE =
           "https://www.youtube-nocookie.com/embed/" + TUTORIAL_VIDEO_ID;
@@ -2272,37 +2205,6 @@
         var welcomeVideoIframe = document.getElementById("welcome-video-iframe");
         var welcomeVideoSection = document.getElementById("welcome-video-section");
 
-        function loadApp() {
-          if (window.__dashboardAppLoaded) return;
-          window.__dashboardAppLoaded = true;
-          function appendAppScript() {
-            var s = document.createElement("script");
-            s.src = "app.js";
-            document.body.appendChild(s);
-          }
-          var config = document.createElement("script");
-          config.src = "config.local.js";
-          config.onerror = appendAppScript;
-          config.onload = appendAppScript;
-          document.body.appendChild(config);
-        }
-
-        function enterDashboard() {
-          sessionStorage.setItem(AUTH_KEY, "1");
-          pauseWelcomeVideo();
-          if (gate) {
-            gate.classList.remove("login-gate--review");
-            gate.hidden = true;
-          }
-          if (dash) dash.hidden = false;
-          document.body.classList.add("dashboard-unlocked");
-          loadApp();
-        }
-
-        /** Build the privacy-enhanced YouTube embed URL for a given start time (seconds).
-         *  enablejsapi=1 lets us pause the player via postMessage when the user
-         *  leaves the tutorial page. When autoplay is true the video starts
-         *  playing with sound (used by the per-page tutorial buttons). */
         function tutorialEmbedSrc(startSeconds, autoplay) {
           var start = Math.max(0, Math.round(Number(startSeconds) || 0));
           return (
@@ -2381,31 +2283,11 @@
           gate.hidden = true;
           dash.hidden = false;
           document.body.classList.add("dashboard-unlocked");
-          // Re-show may change the map container size; nudge Mapbox (and any
-          // other resize-aware code) to relayout cleanly.
           try {
             window.dispatchEvent(new Event("resize"));
           } catch (e) {
             /* ignore */
           }
-        }
-
-        if (form) {
-          form.addEventListener("submit", function (e) {
-            e.preventDefault();
-            if (sessionStorage.getItem(AUTH_KEY) === "1") {
-              // User is already authed and viewing the tutorial again;
-              // an Enter keypress should just take them back to the dashboard.
-              exitWelcomeReview();
-              return;
-            }
-            if (input && input.value === PASSWORD) {
-              if (err) err.hidden = true;
-              enterDashboard();
-            } else if (err) {
-              err.hidden = false;
-            }
-          });
         }
 
         if (viewTutorialBtn) {
@@ -2415,12 +2297,6 @@
           backToDashboardBtn.addEventListener("click", exitWelcomeReview);
         }
 
-        /* Per-page "View Video Tutorial for this Page" buttons jump to the
-           tutorial page and cue the video to that page's timestamp (in seconds,
-           via data-tutorial-start). The Scenario Planning button also carries
-           data-tutorial-start-sandbox: when the Boundary Sandbox sub-tab is the
-           active sub-view, that timestamp is used instead of the Enrollment
-           Planning one. */
         function tutorialStartForButton(btn) {
           var sandboxStart = btn.getAttribute("data-tutorial-start-sandbox");
           if (sandboxStart != null) {
@@ -2443,86 +2319,186 @@
         for (var ti = 0; ti < pageTutorialBtns.length; ti++) {
           (function (btn) {
             btn.addEventListener("click", function () {
-              /* Per-page buttons auto-play with sound at the page timestamp. */
               openTutorialView(tutorialStartForButton(btn), true);
             });
           })(pageTutorialBtns[ti]);
         }
 
         window.__openTutorialView = openTutorialView;
-
-        /* Landing-page "explore" links. Stash the requested view so the
-           dashboard opens straight to it. If the user is already authed
-           (e.g. reviewing the welcome page) we go right in; otherwise we
-           nudge them to the password field and app.js applies the pending
-           nav once they enter. */
-        function requestDashboardView(page, subtab) {
-          if (!page) return;
+      })();
+    </script>
+    <script defer src="https://api.mapbox.com/mapbox-gl-js/v3.8.0/mapbox-gl.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@turf/turf@7.2.0/turf.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+    <script defer src="https://unpkg.com/d3-sankey@0.12.3/dist/d3-sankey.min.js"></script>
+    <!-- Google Translate + language switcher (async — must not block welcome page). -->
+    <div id="google_translate_element" aria-hidden="true"></div>
+    <script>
+      (function () {
+        var LANG_KEY = "brevardDashLang";
+        function savedLang() {
           try {
-            sessionStorage.setItem(
-              PENDING_NAV_KEY,
-              JSON.stringify({ page: page, subtab: subtab || null })
-            );
+            return localStorage.getItem(LANG_KEY) || "en";
+          } catch (e) {
+            return "en";
+          }
+        }
+        function setGoogTransCookie(lang) {
+          var val = "/en/" + (lang || "en");
+          var base = "googtrans=" + val + "; path=/; max-age=31536000";
+          try {
+            document.cookie = base;
+            var host = location.hostname;
+            if (host && host.indexOf(".") !== -1) {
+              document.cookie = base + "; domain=" + host;
+              var parts = host.split(".");
+              var root =
+                parts.length > 2 ? parts.slice(-2).join(".") : host;
+              document.cookie = base + "; domain=." + root;
+            }
           } catch (e) {
             /* ignore */
           }
-          if (sessionStorage.getItem(AUTH_KEY) === "1") {
-            if (gate && !gate.hidden) {
-              exitWelcomeReview();
-            } else if (dash && dash.hidden) {
-              enterDashboard();
-            }
-            loadApp();
-            if (
-              window.__dashboardAppLoaded &&
-              typeof window.__applyPendingDashboardNav === "function"
-            ) {
-              setTimeout(function () {
-                try {
-                  window.__applyPendingDashboardNav();
-                } catch (e) {
-                  /* ignore */
-                }
-              }, 0);
-            }
-          } else {
-            if (input) {
-              try {
-                input.focus();
-              } catch (e) {
-                /* ignore */
-              }
-            }
-            var authCard = document.querySelector(".welcome-section--auth");
-            if (authCard && authCard.scrollIntoView) {
-              try {
-                authCard.scrollIntoView({ behavior: "smooth", block: "center" });
-              } catch (e) {
-                /* ignore */
-              }
+        }
+        window.__brevardSetGoogTransCookie = setGoogTransCookie;
+        var initial = savedLang();
+        if (initial && initial !== "en") {
+          setGoogTransCookie(initial);
+        }
+      })();
+      function googleTranslateElementInit() {
+        new google.translate.TranslateElement(
+          {
+            pageLanguage: "en",
+            includedLanguages: "en,es",
+            autoDisplay: false,
+          },
+          "google_translate_element"
+        );
+        if (typeof window.__brevardOnTranslateReady === "function") {
+          window.__brevardOnTranslateReady();
+        }
+      }
+    </script>
+    <script
+      async
+      src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"
+    ></script>
+    <script>
+      (function () {
+        var LANG_KEY = "brevardDashLang";
+        var LABELS = { en: "English", es: "Espa\u00F1ol" };
+        var current = "en";
+        try {
+          current = localStorage.getItem(LANG_KEY) || "en";
+        } catch (e) {
+          current = "en";
+        }
+        var pendingApply = current !== "en" ? current : null;
+        function getCombo() {
+          return document.querySelector(".goog-te-combo");
+        }
+        function driveCombo(lang) {
+          var combo = getCombo();
+          if (!combo) return false;
+          combo.value = lang;
+          combo.dispatchEvent(new Event("change"));
+          return true;
+        }
+        function closeAllMenus() {
+          var menus = document.querySelectorAll(".lang-switch__menu");
+          for (var i = 0; i < menus.length; i++) menus[i].hidden = true;
+          var btns = document.querySelectorAll(".lang-switch__btn");
+          for (var k = 0; k < btns.length; k++) {
+            btns[k].setAttribute("aria-expanded", "false");
+          }
+        }
+        function updateUI() {
+          var switches = document.querySelectorAll("[data-lang-switch]");
+          for (var i = 0; i < switches.length; i++) {
+            var sw = switches[i];
+            var cur = sw.querySelector("[data-lang-current]");
+            if (cur) cur.textContent = LABELS[current] || "English";
+            var opts = sw.querySelectorAll(".lang-switch__opt");
+            for (var j = 0; j < opts.length; j++) {
+              var on = opts[j].getAttribute("data-lang") === current;
+              opts[j].classList.toggle("is-active", on);
+              opts[j].setAttribute("aria-checked", on ? "true" : "false");
             }
           }
         }
-
-        var exploreLinks = document.querySelectorAll(
-          ".welcome-explore__link[data-nav-page]"
-        );
-        for (var ei = 0; ei < exploreLinks.length; ei++) {
-          (function (btn) {
-            btn.addEventListener("click", function () {
-              requestDashboardView(
-                btn.getAttribute("data-nav-page"),
-                btn.getAttribute("data-nav-subtab")
-              );
-            });
-          })(exploreLinks[ei]);
+        function setLanguage(lang) {
+          if (!LABELS[lang]) lang = "en";
+          current = lang;
+          try {
+            localStorage.setItem(LANG_KEY, lang);
+          } catch (e) {
+            /* ignore */
+          }
+          if (typeof window.__brevardSetGoogTransCookie === "function") {
+            window.__brevardSetGoogTransCookie(lang);
+          }
+          if (!driveCombo(lang)) {
+            pendingApply = lang;
+          }
+          updateUI();
+          closeAllMenus();
         }
-
-        if (sessionStorage.getItem(AUTH_KEY) === "1") {
-          if (gate) gate.hidden = true;
-          if (dash) dash.hidden = false;
-          document.body.classList.add("dashboard-unlocked");
-          loadApp();
+        function applyPending() {
+          if (!pendingApply) return;
+          var tries = 0;
+          var timer = setInterval(function () {
+            tries++;
+            if (driveCombo(pendingApply) || tries > 25) {
+              clearInterval(timer);
+              pendingApply = null;
+            }
+          }, 150);
+        }
+        window.__brevardOnTranslateReady = function () {
+          applyPending();
+          updateUI();
+        };
+        function wire() {
+          var switches = document.querySelectorAll("[data-lang-switch]");
+          for (var i = 0; i < switches.length; i++) {
+            (function (sw) {
+              var btn = sw.querySelector(".lang-switch__btn");
+              var menu = sw.querySelector(".lang-switch__menu");
+              if (btn && menu) {
+                btn.addEventListener("click", function (e) {
+                  e.stopPropagation();
+                  var willOpen = menu.hidden;
+                  closeAllMenus();
+                  menu.hidden = !willOpen;
+                  btn.setAttribute(
+                    "aria-expanded",
+                    willOpen ? "true" : "false"
+                  );
+                });
+              }
+              var opts = sw.querySelectorAll(".lang-switch__opt");
+              for (var j = 0; j < opts.length; j++) {
+                (function (opt) {
+                  opt.addEventListener("click", function (e) {
+                    e.stopPropagation();
+                    setLanguage(opt.getAttribute("data-lang"));
+                  });
+                })(opts[j]);
+              }
+            })(switches[i]);
+          }
+          document.addEventListener("click", closeAllMenus);
+          document.addEventListener("keydown", function (e) {
+            if (e.key === "Escape") closeAllMenus();
+          });
+          updateUI();
+          if (pendingApply && getCombo()) applyPending();
+        }
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", wire);
+        } else {
+          wire();
         }
       })();
     </script>
