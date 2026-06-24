@@ -1,2 +1,6 @@
-// Copy to config.local.js (gitignored) and set your Mapbox public token.
+// Copy to config.local.js (gitignored) and set your keys.
 window.MAPBOX_ACCESS_TOKEN = "pk.your_mapbox_public_token_here";
+
+// Optional: Google Analytics 4 measurement ID (Admin → Data streams → Web → Measurement ID).
+// Leave blank or omit to disable analytics locally.
+window.GA4_MEASUREMENT_ID = "G-XXXXXXXXXX";

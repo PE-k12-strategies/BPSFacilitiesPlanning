@@ -11,6 +11,7 @@
     <link rel="preconnect" href="https://unpkg.com" crossorigin />
     <link rel="preconnect" href="https://www.youtube-nocookie.com" crossorigin />
     <link rel="preconnect" href="https://translate.google.com" crossorigin />
+    <link rel="preconnect" href="https://www.googletagmanager.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Libre+Franklin:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap"
       rel="stylesheet"
@@ -19,7 +20,31 @@
       href="https://api.mapbox.com/mapbox-gl-js/v3.8.0/mapbox-gl.css"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=20260612-6" />
+    <link rel="stylesheet" href="styles.css?v=20260624-2" />
+    <script src="config.local.js" onerror="void 0"></script>
+    <script>
+      /* Google Analytics 4 — only runs when config.local.js sets GA4_MEASUREMENT_ID (G-…). */
+      (function () {
+        var id =
+          typeof window.GA4_MEASUREMENT_ID === "string"
+            ? window.GA4_MEASUREMENT_ID.trim()
+            : "";
+        if (!id || id.indexOf("G-") !== 0) return;
+        window.dataLayer = window.dataLayer || [];
+        function gtag() {
+          window.dataLayer.push(arguments);
+        }
+        window.gtag = gtag;
+        gtag("js", new Date());
+        gtag("config", id);
+        var s = document.createElement("script");
+        s.async = true;
+        s.src =
+          "https://www.googletagmanager.com/gtag/js?id=" +
+          encodeURIComponent(id);
+        document.head.appendChild(s);
+      })();
+    </script>
     <script>
       /* Pre-fetch dashboard data files as early as possible — as soon as the
          welcome / tutorial page loads — so heavy GeoJSON and school stats are
@@ -107,6 +132,10 @@
             var s = document.createElement("script");
             s.src = "app.js";
             document.body.appendChild(s);
+          }
+          if (window.MAPBOX_ACCESS_TOKEN) {
+            appendAppScript();
+            return;
           }
           var config = document.createElement("script");
           config.src = "config.local.js";
@@ -426,6 +455,55 @@
               </ul>
             </div>
           </div>
+        </div>
+        <p class="welcome-changelog">
+          <button
+            type="button"
+            class="welcome-changelog__link"
+            id="welcome-changelog-btn"
+            aria-haspopup="dialog"
+            aria-controls="welcome-changelog-overlay"
+          >
+            Change Log - Last Updated June 24, 2026
+          </button>
+        </p>
+      </div>
+    </div>
+
+    <div
+      id="welcome-changelog-overlay"
+      class="welcome-changelog-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="welcome-changelog-title"
+      hidden
+    >
+      <div class="welcome-changelog-card" role="document">
+        <header class="welcome-changelog-card__head">
+          <h2 id="welcome-changelog-title" class="welcome-changelog-card__title">
+            Change Log
+          </h2>
+          <button
+            type="button"
+            class="welcome-changelog-card__close"
+            id="welcome-changelog-close-btn"
+            aria-label="Close change log"
+          >
+            &times;
+          </button>
+        </header>
+        <div class="welcome-changelog-card__body">
+          <section class="welcome-changelog-entry">
+            <h3 class="welcome-changelog-entry__date">June 24, 2026</h3>
+            <ul class="welcome-changelog-entry__list">
+              <li>Added change log.</li>
+              <li>
+                Increased the maximum number of user-drawn boundaries in scenario
+                planning, adding a performance warning when more than 12 boundaries
+                are active.
+              </li>
+            </ul>
+          </section>
         </div>
       </div>
     </div>
@@ -1130,7 +1208,7 @@
                 school boundaries better to real neighborhoods.
               </li>
               <li>
-                Add up to <strong>five boundaries</strong>, either starting from a
+                Add up to <strong>99 boundaries</strong>, either starting from a
                 school&rsquo;s existing boundary or starting from scratch. Each
                 boundary gets its own color and title, which you can rename, and you
                 can click on the colors to switch the active school boundary.
@@ -1150,8 +1228,8 @@
               </li>
               <li>
                 Click <strong>&ldquo;+ Add Boundary&rdquo;</strong> to start the next
-                one, up to five schools total. You can go back to an earlier boundary
-                at any time. Use <strong>&ldquo;Clear active boundary&rdquo;</strong>
+                one. You can go back to an earlier boundary at any time. Use
+                <strong>&ldquo;Clear active boundary&rdquo;</strong>
                 to reset your selection, or use <strong>&ldquo;Reset scenario&rdquo;</strong>
                 (above) to start your whole map over.
               </li>
@@ -1253,7 +1331,7 @@
               Boundaries<button
                 type="button"
                 class="info-tip"
-                title="Add up to 5 boundaries. Click a row to pick the one you are drawing. Each boundary keeps its color, but you can rename it and choose a base school to fill it in. Two boundaries can share the same hexagon only if they do not share any of the same grades (for example, a K-6 elementary and a 7-8 middle school)."
+                title="Add up to 99 boundaries. Click a row to pick the one you are drawing. Each boundary keeps its color, but colors may repeat at high counts; you can rename each boundary and choose a base school to fill it in. Two boundaries can share the same hexagon only if they do not share any of the same grades (for example, a K-6 elementary and a 7-8 middle school)."
                 aria-label="More info: Boundaries"
               >?</button>
               <span class="sandbox-boundaries-count" id="sandbox-boundaries-count" aria-live="polite"></span>
@@ -1262,6 +1340,13 @@
             <button type="button" id="sandbox-add-boundary-btn" class="sandbox-add-boundary-btn">
               + Add boundary
             </button>
+            <p
+              class="sandbox-boundaries-warning"
+              id="sandbox-boundaries-warning"
+              role="status"
+              aria-live="polite"
+              hidden
+            ></p>
             <p class="sandbox-hint" id="sandbox-overlap-notice" aria-live="polite" hidden></p>
           </section>
 
@@ -2202,6 +2287,11 @@
         var backToDashboardBtn = document.getElementById(
           "welcome-back-to-dashboard-btn"
         );
+        var changeLogBtn = document.getElementById("welcome-changelog-btn");
+        var changeLogOverlay = document.getElementById("welcome-changelog-overlay");
+        var changeLogCloseBtn = document.getElementById(
+          "welcome-changelog-close-btn"
+        );
         var welcomeVideoIframe = document.getElementById("welcome-video-iframe");
         var welcomeVideoSection = document.getElementById("welcome-video-section");
 
@@ -2296,6 +2386,53 @@
         if (backToDashboardBtn) {
           backToDashboardBtn.addEventListener("click", exitWelcomeReview);
         }
+
+        function openChangeLog() {
+          if (!changeLogOverlay) return;
+          changeLogOverlay.hidden = false;
+          if (changeLogCloseBtn) {
+            try {
+              changeLogCloseBtn.focus();
+            } catch (e) {
+              /* ignore */
+            }
+          }
+        }
+
+        function closeChangeLog() {
+          if (!changeLogOverlay) return;
+          changeLogOverlay.hidden = true;
+          if (changeLogBtn) {
+            try {
+              changeLogBtn.focus();
+            } catch (e) {
+              /* ignore */
+            }
+          }
+        }
+
+        if (changeLogBtn) {
+          changeLogBtn.addEventListener("click", openChangeLog);
+        }
+        if (changeLogCloseBtn) {
+          changeLogCloseBtn.addEventListener("click", closeChangeLog);
+        }
+        if (changeLogOverlay) {
+          changeLogOverlay.addEventListener("click", function (e) {
+            if (e.target === changeLogOverlay) {
+              closeChangeLog();
+            }
+          });
+        }
+        document.addEventListener("keydown", function (e) {
+          if (
+            e.key === "Escape" &&
+            changeLogOverlay &&
+            !changeLogOverlay.hidden
+          ) {
+            closeChangeLog();
+          }
+        });
 
         function tutorialStartForButton(btn) {
           var sandboxStart = btn.getAttribute("data-tutorial-start-sandbox");

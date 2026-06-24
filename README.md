@@ -39,6 +39,7 @@ The live site at https://pe-k12-strategies.github.io/BPSFacilitiesPlanning/ is b
 | Secret | Purpose |
 |--------|---------|
 | `MAPBOX_ACCESS_TOKEN` | Mapbox public token (`pk.…`) for the basemap — **required** |
+| `GA4_MEASUREMENT_ID` | Google Analytics 4 web stream ID (`G-…`) — optional |
 | `PRIVATE_DATA_PAT` | GitHub PAT with read access to [BPSFacilitiesPlanning-Public_PrivateData](https://github.com/PE-k12-strategies/BPSFacilitiesPlanning-Public_PrivateData) — needed for `school_master.csv` on the live site |
 
 **Pages source:** Settings → Pages → Build and deployment → **GitHub Actions** (not “Deploy from a branch”). Also enable **Settings → Actions → General → Workflow permissions → Read and write permissions** so deploys can publish.
