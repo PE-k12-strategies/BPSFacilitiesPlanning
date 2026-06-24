@@ -480,18 +480,26 @@
   /** Bar currently click-locked in the stacked enrollment chart (period label). */
   var scenarioGradeSummaryLockedLabel = null;
 
-  /** Fixed palette for the up-to-5 sandbox boundaries. Distinct hues with similar saturation. */
+  /** Reusable palette for sandbox boundaries. Boundary IDs stay unique up to the hard cap;
+   *  colors repeat after the palette is exhausted. */
   var SANDBOX_BOUNDARY_PALETTE = [
     { id: "b1", fill: "#84cc16", outline: "#65a30d" }, /* lime */
     { id: "b2", fill: "#06b6d4", outline: "#0e7490" }, /* cyan */
     { id: "b3", fill: "#f97316", outline: "#c2410c" }, /* orange */
     { id: "b4", fill: "#a855f7", outline: "#7e22ce" }, /* violet */
-    { id: "b5", fill: "#ec4899", outline: "#be185d" }  /* pink */
+    { id: "b5", fill: "#ec4899", outline: "#be185d" }, /* pink */
+    { id: "b6", fill: "#eab308", outline: "#a16207" }, /* yellow */
+    { id: "b7", fill: "#14b8a6", outline: "#0f766e" }, /* teal */
+    { id: "b8", fill: "#3b82f6", outline: "#1d4ed8" }, /* blue */
+    { id: "b9", fill: "#ef4444", outline: "#b91c1c" }, /* red */
+    { id: "b10", fill: "#64748b", outline: "#334155" }, /* slate */
+    { id: "b11", fill: "#8b5cf6", outline: "#6d28d9" }, /* purple */
+    { id: "b12", fill: "#22c55e", outline: "#15803d" } /* green */
   ];
-  var SANDBOX_MAX_BOUNDARIES = 5;
+  var SANDBOX_MAX_BOUNDARIES = 99;
 
   /**
-   * Boundary Sandbox state. Now supports up to 5 simultaneous, non-overlapping boundaries.
+   * Boundary Sandbox state. Now supports up to 99 simultaneous, non-overlapping boundaries.
    * Each entry in `boundaries` owns its own selectedHexKeys, confirmedHexKeysSnapshot,
    * gradeToggles, attendanceTypeToggles, schoolListExpanded, lassoRegionFootprintFeature,
    * baseMsid, color, and name. `selectionConfirmed` is treated as always-on (legacy field).
@@ -722,9 +730,10 @@
   /** Build a new empty boundary record. */
   function sandboxMakeBoundaryRecord(slotIndex, customName) {
     var pal = SANDBOX_BOUNDARY_PALETTE[slotIndex % SANDBOX_BOUNDARY_PALETTE.length];
+    var boundaryNumber = slotIndex + 1;
     return {
-      id: pal.id,
-      name: (customName && String(customName).trim()) || ("Boundary " + (slotIndex + 1)),
+      id: "b" + boundaryNumber,
+      name: (customName && String(customName).trim()) || ("Boundary " + boundaryNumber),
       color: pal.fill,
       outline: pal.outline,
       baseMsid: null,
@@ -2970,14 +2979,10 @@
           source: "boundary-sandbox-hex",
           paint: {
             "fill-color": [
-              "match",
-              ["coalesce", ["feature-state", "boundaryId"], ""],
-              SANDBOX_BOUNDARY_PALETTE[0].id, SANDBOX_BOUNDARY_PALETTE[0].fill,
-              SANDBOX_BOUNDARY_PALETTE[1].id, SANDBOX_BOUNDARY_PALETTE[1].fill,
-              SANDBOX_BOUNDARY_PALETTE[2].id, SANDBOX_BOUNDARY_PALETTE[2].fill,
-              SANDBOX_BOUNDARY_PALETTE[3].id, SANDBOX_BOUNDARY_PALETTE[3].fill,
-              SANDBOX_BOUNDARY_PALETTE[4].id, SANDBOX_BOUNDARY_PALETTE[4].fill,
+              "case",
+              ["==", ["coalesce", ["feature-state", "boundaryId"], ""], ""],
               "#84cc16",
+              ["coalesce", ["feature-state", "boundaryColor"], "#84cc16"],
             ],
             "fill-opacity": [
               "case",
@@ -4460,7 +4465,7 @@
         active.selectedHexKeys[key] = true;
         map.setFeatureState(
           { source: "boundary-sandbox-hex", id: key },
-          { boundaryId: active.id }
+          { boundaryId: active.id, boundaryColor: active.color }
         );
       } else {
         delete active.selectedHexKeys[key];
@@ -4469,7 +4474,10 @@
         var remainingOwner = sandboxBoundaryOwningHexExcluding(key, active.id);
         map.setFeatureState(
           { source: "boundary-sandbox-hex", id: key },
-          { boundaryId: remainingOwner ? remainingOwner.id : "" }
+          {
+            boundaryId: remainingOwner ? remainingOwner.id : "",
+            boundaryColor: remainingOwner ? remainingOwner.color : "#84cc16",
+          }
         );
       }
     } catch (e0) {
@@ -4499,7 +4507,7 @@
         try {
           map.setFeatureState(
             { source: "boundary-sandbox-hex", id: k },
-            { boundaryId: "" }
+            { boundaryId: "", boundaryColor: "#84cc16" }
           );
         } catch (ePer) { /* ignore */ }
       }
@@ -4507,7 +4515,7 @@
         try {
           map.setFeatureState(
             { source: "boundary-sandbox-hex", id: ks },
-            { boundaryId: "" }
+            { boundaryId: "", boundaryColor: "#84cc16" }
           );
         } catch (eSnap) { /* ignore */ }
       }
@@ -4530,7 +4538,10 @@
           var remainingClear = sandboxBoundaryOwningHexExcluding(k, active.id);
           map.setFeatureState(
             { source: "boundary-sandbox-hex", id: k },
-            { boundaryId: remainingClear ? remainingClear.id : "" }
+            {
+              boundaryId: remainingClear ? remainingClear.id : "",
+              boundaryColor: remainingClear ? remainingClear.color : "#84cc16",
+            }
           );
         }
       } catch (eClr) { /* ignore */ }
@@ -5005,7 +5016,7 @@
         try {
           map.setFeatureState(
             { source: "boundary-sandbox-hex", id: sk },
-            { boundaryId: b.id }
+            { boundaryId: b.id, boundaryColor: b.color }
           );
         } catch (eSet) { /* ignore */ }
       }
@@ -5016,7 +5027,7 @@
         try {
           map.setFeatureState(
             { source: "boundary-sandbox-hex", id: sk2 },
-            { boundaryId: deferActive.id }
+            { boundaryId: deferActive.id, boundaryColor: deferActive.color }
           );
         } catch (eSet2) { /* ignore */ }
       }
@@ -5953,7 +5964,10 @@
           var remainingPrev = sandboxBoundaryOwningHexExcluding(prevK, active.id);
           map.setFeatureState(
             { source: "boundary-sandbox-hex", id: prevK },
-            { boundaryId: remainingPrev ? remainingPrev.id : "" }
+            {
+              boundaryId: remainingPrev ? remainingPrev.id : "",
+              boundaryColor: remainingPrev ? remainingPrev.color : "#84cc16",
+            }
           );
         }
       } catch (eClr) { /* ignore */ }
@@ -6221,10 +6235,10 @@
       used[BOUNDARY_SANDBOX.boundaries[i].id] = true;
     }
     var slot = 0;
-    for (slot = 0; slot < SANDBOX_BOUNDARY_PALETTE.length; slot++) {
-      if (!used[SANDBOX_BOUNDARY_PALETTE[slot].id]) break;
+    for (slot = 0; slot < SANDBOX_MAX_BOUNDARIES; slot++) {
+      if (!used["b" + (slot + 1)]) break;
     }
-    if (slot >= SANDBOX_BOUNDARY_PALETTE.length) return null;
+    if (slot >= SANDBOX_MAX_BOUNDARIES) return null;
     var b = sandboxMakeBoundaryRecord(slot);
     BOUNDARY_SANDBOX.boundaries.push(b);
     /* Newly added boundary becomes active. Route through sandboxSetActiveBoundary
@@ -6235,6 +6249,19 @@
        boundary's color before the user has even drawn anything). */
     sandboxSetActiveBoundary(b.id);
     return b;
+  }
+
+  function syncSandboxBoundaryPerformanceWarning() {
+    var el = document.getElementById("sandbox-boundaries-warning");
+    if (!el) return;
+    if (BOUNDARY_SANDBOX.boundaries.length > 12) {
+      el.textContent =
+        "performance may degrade with more than 12 boundaries. For best results, keep the number of active boundaries as low as your scenario allows.";
+      el.hidden = false;
+    } else {
+      el.hidden = true;
+      el.textContent = "";
+    }
   }
 
   function sandboxRemoveBoundary(boundaryId) {
@@ -6252,7 +6279,10 @@
           var remainingRem = sandboxBoundaryOwningHexExcluding(k, boundaryId);
           map.setFeatureState(
             { source: "boundary-sandbox-hex", id: k },
-            { boundaryId: remainingRem ? remainingRem.id : "" }
+            {
+              boundaryId: remainingRem ? remainingRem.id : "",
+              boundaryColor: remainingRem ? remainingRem.color : "#84cc16",
+            }
           );
         }
       } catch (eC) { /* ignore */ }
@@ -6350,9 +6380,11 @@
       addBtn.disabled = BOUNDARY_SANDBOX.boundaries.length >= SANDBOX_MAX_BOUNDARIES;
     }
     if (count) {
+      var boundaryCount = BOUNDARY_SANDBOX.boundaries.length;
       count.textContent =
-        BOUNDARY_SANDBOX.boundaries.length + " / " + SANDBOX_MAX_BOUNDARIES;
+        boundaryCount === 1 ? "1 Boundary" : boundaryCount + " Boundaries";
     }
+    syncSandboxBoundaryPerformanceWarning();
     var activeId = BOUNDARY_SANDBOX.activeBoundaryId;
     /* Build a base-school dropdown reusing options from #school-select for parity with Existing Conditions. */
     var existingSel = document.getElementById("school-select");
@@ -18514,7 +18546,7 @@
             if (typeof map !== "undefined" && map && map.setFeatureState) {
               map.setFeatureState(
                 { source: "boundary-sandbox-hex", id: hKey },
-                { boundaryId: dst.id }
+                { boundaryId: dst.id, boundaryColor: dst.color }
               );
             }
           } catch (eF) { /* ignore */ }
