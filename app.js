@@ -6669,21 +6669,13 @@
     return byGrade;
   }
 
-  /** Render the summary table comparing grade-level enrollment across boundaries. */
-  function renderSandboxSummaryTable() {
-    var wrap = document.getElementById("sandbox-summary-table-wrap");
-    if (!wrap) return;
-    if (!BOUNDARY_SANDBOX.boundaries.length) {
-      wrap.innerHTML =
-        '<p class="sandbox-placeholder">No boundaries yet. Add a boundary above and start drawing on the map.</p>';
-      return;
-    }
-    /* aggregateSandboxBoundaryByGrade already filters by per-boundary grade
-       toggles, so cells naturally read 0 when the boundary excludes that
-       grade. To make the comparison clear, always include the fixed K-12
-       grade rows. PK / NG / unknown rows are appended only if some boundary
-       has students in those buckets. */
-    var bs = BOUNDARY_SANDBOX.boundaries;
+  /**
+   * Shared model for the Boundary Sandbox comparison table (UI + PDF).
+   * @returns {{ headers: string[], rows: Array<{label:string, values:string[], kind:string}>, boundaryCount: number }|null}
+   */
+  function buildSandboxSummaryTableModel() {
+    var bs = BOUNDARY_SANDBOX.boundaries || [];
+    if (!bs.length) return null;
     var perBoundaryByGrade = [];
     var extraGradeSet = Object.create(null);
     for (var i = 0; i < bs.length; i++) {
@@ -6699,7 +6691,100 @@
       return travelShedGradeSortKey(a) - travelShedGradeSortKey(c);
     });
     gradeKeys = gradeKeys.concat(extras);
-    /* Build table HTML. */
+
+    var headers = ["Metric"];
+    var headerColors = [null];
+    var headerOutlines = [null];
+    for (var c0 = 0; c0 < bs.length; c0++) {
+      headers.push(bs[c0].name || ("Boundary " + (c0 + 1)));
+      headerColors.push(bs[c0].color || null);
+      headerOutlines.push(bs[c0].outline || null);
+    }
+
+    var totals = new Array(bs.length).fill(0);
+    var rows = [];
+    for (var gi = 0; gi < gradeKeys.length; gi++) {
+      var gk = gradeKeys[gi];
+      var labFull =
+        gk === "__NOGRADE__"
+          ? "No grade"
+          : "Grade " + travelShedGradeDisplayLabel(gk);
+      var vals = [];
+      for (var ci = 0; ci < bs.length; ci++) {
+        var cnt = perBoundaryByGrade[ci][gk] || 0;
+        totals[ci] += cnt;
+        vals.push(cnt.toLocaleString());
+      }
+      rows.push({ label: labFull, values: vals, kind: "grade" });
+    }
+
+    var totalVals = [];
+    for (var ti = 0; ti < bs.length; ti++) {
+      totalVals.push(totals[ti] > 0 ? totals[ti].toLocaleString() : "—");
+    }
+    rows.push({ label: "Total enrollment", values: totalVals, kind: "totals" });
+
+    var capacities = [];
+    var capVals = [];
+    for (var pi = 0; pi < bs.length; pi++) {
+      var capN = NaN;
+      if (bs[pi].baseMsid != null && !isNaN(bs[pi].baseMsid)) {
+        var mB = masterRow(bs[pi].baseMsid);
+        if (
+          mB &&
+          mB.factored_capacity_2025_26 !== "" &&
+          mB.factored_capacity_2025_26 != null
+        ) {
+          var capV = Number(mB.factored_capacity_2025_26);
+          if (!isNaN(capV)) capN = capV;
+        }
+      }
+      capacities.push(capN);
+      capVals.push(isNaN(capN) ? "—" : capN.toLocaleString());
+    }
+    rows.push({
+      label: "Factored capacity (base school)",
+      values: capVals,
+      kind: "capacity"
+    });
+
+    var utilVals = [];
+    for (var ui = 0; ui < bs.length; ui++) {
+      var enrU = totals[ui];
+      var capU = capacities[ui];
+      if (isNaN(capU) || capU <= 0 || !enrU) {
+        utilVals.push("—");
+      } else {
+        utilVals.push(Math.round((enrU / capU) * 100) + "%");
+      }
+    }
+    rows.push({ label: "Utilization", values: utilVals, kind: "utilization" });
+
+    return {
+      headers: headers,
+      headerColors: headerColors,
+      headerOutlines: headerOutlines,
+      rows: rows,
+      boundaryCount: bs.length
+    };
+  }
+
+  /** Render the summary table comparing grade-level enrollment across boundaries. */
+  function renderSandboxSummaryTable() {
+    var wrap = document.getElementById("sandbox-summary-table-wrap");
+    if (!wrap) return;
+    if (!BOUNDARY_SANDBOX.boundaries.length) {
+      wrap.innerHTML =
+        '<p class="sandbox-placeholder">No boundaries yet. Add a boundary above and start drawing on the map.</p>';
+      return;
+    }
+    var model = buildSandboxSummaryTableModel();
+    if (!model) {
+      wrap.innerHTML =
+        '<p class="sandbox-placeholder">No boundaries yet. Add a boundary above and start drawing on the map.</p>';
+      return;
+    }
+    var bs = BOUNDARY_SANDBOX.boundaries;
     var html = ['<table class="sandbox-summary-table" aria-label="Summary table across boundaries">'];
     html.push("<thead><tr><th scope=\"col\">Metric</th>");
     for (var c0 = 0; c0 < bs.length; c0++) {
@@ -6715,55 +6800,22 @@
       );
     }
     html.push("</tr></thead><tbody>");
-    /* One row per grade. Always print the numeric value (0 included) so the
-       user can see when a grade was toggled off in a boundary. */
-    var totals = new Array(bs.length).fill(0);
-    for (var gi = 0; gi < gradeKeys.length; gi++) {
-      var gk = gradeKeys[gi];
-      var labFull = gk === "__NOGRADE__" ? "No grade" : ("Grade " + travelShedGradeDisplayLabel(gk));
-      html.push("<tr><th scope=\"row\">" + escapeHtml(labFull) + "</th>");
-      for (var ci = 0; ci < bs.length; ci++) {
-        var cnt = (perBoundaryByGrade[ci][gk] || 0);
-        totals[ci] += cnt;
-        html.push("<td>" + cnt.toLocaleString() + "</td>");
+    for (var ri = 0; ri < model.rows.length; ri++) {
+      var row = model.rows[ri];
+      var trClass =
+        row.kind === "totals"
+          ? ' class="sandbox-summary-row--totals"'
+          : row.kind === "capacity"
+            ? ' class="sandbox-summary-row--capacity"'
+            : row.kind === "utilization"
+              ? ' class="sandbox-summary-row--utilization"'
+              : "";
+      html.push("<tr" + trClass + "><th scope=\"row\">" + escapeHtml(row.label) + "</th>");
+      for (var vi = 0; vi < row.values.length; vi++) {
+        html.push("<td>" + escapeHtml(row.values[vi]) + "</td>");
       }
       html.push("</tr>");
     }
-    /* Totals row. */
-    html.push('<tr class="sandbox-summary-row--totals"><th scope="row">Total enrollment</th>');
-    for (var ti2 = 0; ti2 < bs.length; ti2++) {
-      html.push("<td>" + (totals[ti2] > 0 ? totals[ti2].toLocaleString() : "—") + "</td>");
-    }
-    html.push("</tr>");
-    /* Capacity row. */
-    html.push('<tr class="sandbox-summary-row--capacity"><th scope="row">Factored capacity (base school)</th>');
-    var capacities = [];
-    for (var pi3 = 0; pi3 < bs.length; pi3++) {
-      var capN = NaN;
-      if (bs[pi3].baseMsid != null && !isNaN(bs[pi3].baseMsid)) {
-        var mB = masterRow(bs[pi3].baseMsid);
-        if (mB && mB.factored_capacity_2025_26 !== "" && mB.factored_capacity_2025_26 != null) {
-          var capV = Number(mB.factored_capacity_2025_26);
-          if (!isNaN(capV)) capN = capV;
-        }
-      }
-      capacities.push(capN);
-      html.push("<td>" + (isNaN(capN) ? "—" : capN.toLocaleString()) + "</td>");
-    }
-    html.push("</tr>");
-    /* Utilization row. */
-    html.push('<tr class="sandbox-summary-row--utilization"><th scope="row">Utilization</th>');
-    for (var ui = 0; ui < bs.length; ui++) {
-      var enrU = totals[ui];
-      var capU = capacities[ui];
-      if (isNaN(capU) || capU <= 0 || !enrU) {
-        html.push("<td>—</td>");
-      } else {
-        var pct = Math.round((enrU / capU) * 100);
-        html.push("<td>" + pct + "%</td>");
-      }
-    }
-    html.push("</tr>");
     html.push("</tbody></table>");
     wrap.innerHTML = html.join("");
   }
@@ -18639,17 +18691,19 @@
           roleHint = "; proportional " + pairPP.propAmt.toLocaleString();
         }
         lines.push("  " + mark + " " + rName + baseTag + " — '25-26 enrollment " + enrStr + roleHint);
-        /* If any grades are toggled off, surface that. */
-        var byMs = scenarioGradeCheckedByMsid[r.msid];
-        if (!r.isScenarioMiddleRow && byMs) {
-          var offGrades = [];
-          for (var gc in byMs) {
-            if (byMs[gc] === false) offGrades.push(travelShedGradeDisplayLabel(gc));
-          }
-          if (offGrades.length) {
-            lines.push("        Grades excluded: " + offGrades.join(", "));
+        /* Grades currently toggled ON for this school (served grades only). */
+        var servedG = scenarioGradeCodesForMsid(r.msid);
+        var onGrades = [];
+        for (var sgi = 0; sgi < servedG.length; sgi++) {
+          var gcOn = servedG[sgi];
+          if (scenarioGradeIncludedForMsid(r.msid, gcOn, !!r.isScenarioMiddleRow)) {
+            onGrades.push(travelShedGradeDisplayLabel(gcOn));
           }
         }
+        lines.push(
+          "        Grades included: " +
+            (onGrades.length ? onGrades.join(", ") : "none")
+        );
       }
     }
     /* Enrollment-by-grade summary for the active period. */
@@ -18708,45 +18762,32 @@
       var nHex = 0;
       for (var hk in b.selectedHexKeys) { if (b.selectedHexKeys[hk]) nHex++; }
       lines.push("  Selected hexes: " + nHex.toLocaleString());
-      /* Grade toggles that are explicitly off. */
-      if (b.gradeToggles) {
-        var offG = [];
-        for (var gg in b.gradeToggles) {
-          if (b.gradeToggles[gg] === false) offG.push(travelShedGradeDisplayLabel(gg));
-        }
-        if (offG.length) lines.push("  Grades excluded: " + offG.join(", "));
+      /* Grades currently toggled ON (same chip strip as the sandbox UI). */
+      var gt = b.gradeToggles || Object.create(null);
+      var onG = [];
+      for (var ggi = 0; ggi < SANDBOX_BOUNDARY_GRADE_CHIPS.length; ggi++) {
+        var gg = SANDBOX_BOUNDARY_GRADE_CHIPS[ggi];
+        if (gt[gg] !== false) onG.push(travelShedGradeDisplayLabel(gg));
       }
-      if (b.attendanceTypeToggles) {
-        var offA = [];
-        for (var aa in b.attendanceTypeToggles) {
-          if (b.attendanceTypeToggles[aa] === false) offA.push(String(aa));
-        }
-        if (offA.length) lines.push("  Attendance types excluded: " + offA.join(", "));
+      lines.push(
+        "  Grades included: " + (onG.length ? onG.join(", ") : "none")
+      );
+      /* Attendance types currently toggled ON (same keys as the sandbox chart). */
+      var at = b.attendanceTypeToggles || Object.create(null);
+      var atRows = [
+        { key: "zonedTraditional", label: "Zoned Traditional School" },
+        { key: "otherTraditional", label: "Other Traditional School" },
+        { key: "charter", label: "Charter School" },
+        { key: "choice", label: "Choice School" },
+        { key: "homeschool", label: "Homeschool" }
+      ];
+      var onA = [];
+      for (var aai = 0; aai < atRows.length; aai++) {
+        if (at[atRows[aai].key] !== false) onA.push(atRows[aai].label);
       }
-    }
-    /* Append summary table (read straight from rendered DOM for accuracy). */
-    var sumWrap = document.getElementById("sandbox-summary-table-wrap");
-    var table = sumWrap ? sumWrap.querySelector("table.sandbox-summary-table") : null;
-    if (table) {
-      lines.push("");
-      lines.push("Summary table:");
-      var headerCells = table.querySelectorAll("thead th");
-      var headers = [];
-      for (var hci = 0; hci < headerCells.length; hci++) {
-        headers.push(headerCells[hci].textContent.trim());
-      }
-      if (headers.length) {
-        lines.push("  " + headers.join(" | "));
-      }
-      var bodyRows = table.querySelectorAll("tbody tr");
-      for (var bri = 0; bri < bodyRows.length; bri++) {
-        var cells = bodyRows[bri].querySelectorAll("th,td");
-        var vals = [];
-        for (var ci = 0; ci < cells.length; ci++) {
-          vals.push(cells[ci].textContent.trim().replace(/\s+/g, " "));
-        }
-        lines.push("  " + vals.join(" | "));
-      }
+      lines.push(
+        "  Attendance types included: " + (onA.length ? onA.join(", ") : "none")
+      );
     }
     return { defaultTitle: defaultTitle, lines: lines };
   }
@@ -18760,6 +18801,75 @@
     if (!enc) return "";
     var base = window.location.origin + window.location.pathname + window.location.search;
     return base + "#" + SHARE_HASH_KEY + "=" + enc;
+  }
+
+  /** Live deep-link for the current share dialog title + active sub-tab. */
+  function shareCurrentDeepLinkUrl(titleHint) {
+    var which = scenarioActiveSubtabId();
+    var title = titleHint != null ? String(titleHint).trim() : "";
+    if (!title) {
+      var titleEl = document.getElementById("share-scenario-title-input");
+      if (titleEl && titleEl.value.trim()) title = titleEl.value.trim();
+    }
+    var payload = which === "sandbox"
+      ? buildSandboxSharePayload(title)
+      : buildScenarioSharePayload(title);
+    return buildShareDeepLinkUrl(payload);
+  }
+
+  /** Compact preview of a long share URL for plain-text email (not clickable-customizable). */
+  function shareAbbreviatedUrlPreview(url, headChars, tailChars) {
+    var u = String(url || "");
+    var head = headChars == null ? 72 : headChars;
+    var tail = tailChars == null ? 18 : tailChars;
+    if (u.length <= head + tail + 3) return u;
+    return u.substring(0, head) + "…" + u.substring(u.length - tail);
+  }
+
+  /** Append a short clickable deep-link to a jsPDF doc; returns updated y. */
+  function sharePdfWriteDeepLink(doc, url, margin, maxW, pageW, pageH, y, lineH) {
+    if (!url) return y;
+    var intro = "Open this scenario in the dashboard:";
+    var label = "Open live scenario (click here)";
+    if (y + lineH > pageH - margin) {
+      doc.addPage();
+      y = margin;
+    }
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(20, 20, 20);
+    doc.text(sharePdfSafeText(intro), margin, y);
+    y += lineH;
+    if (y + lineH > pageH - margin) {
+      doc.addPage();
+      y = margin;
+    }
+    /* jsPDF clickable annotation — short label, full URL as the href. */
+    doc.setTextColor(11, 87, 208);
+    if (typeof doc.textWithLink === "function") {
+      doc.textWithLink(label, margin, y, { url: url });
+    } else {
+      doc.text(label, margin, y);
+      try {
+        var tw = doc.getTextWidth(label);
+        doc.link(margin, y - 10, Math.max(tw, 12), 14, { url: url });
+      } catch (eLink) { /* ignore */ }
+    }
+    doc.setTextColor(20, 20, 20);
+    doc.setFillColor(255, 255, 255);
+    y += lineH;
+    return y;
+  }
+
+  /** Plain-text deep-link block for email / preview (mailto cannot use custom link text). */
+  function shareEmailDeepLinkLines(url) {
+    if (!url) return [];
+    return [
+      "Open this scenario in the dashboard:",
+      "  • Click “Open live scenario (click here)” near the top or bottom of the attached PDF,",
+      "    or use Copy Link in the share dialog.",
+      "  Preview: " + shareAbbreviatedUrlPreview(url)
+    ];
   }
 
   function buildShareBodyText(opts) {
@@ -18785,15 +18895,15 @@
       body.push("Comments:");
       body.push(comments);
     }
-    /* Deep-link suffix. */
+    /* Deep-link suffix — abbreviated in email; full clickable link lives in the PDF.
+       Full hash URLs often exceed Outlook mailto size limits (~2KB). */
     var payload = which === "sandbox"
       ? buildSandboxSharePayload(title)
       : buildScenarioSharePayload(title);
     var url = buildShareDeepLinkUrl(payload);
     if (url) {
       body.push("");
-      body.push("Open this scenario in the dashboard:");
-      body.push(url);
+      body.push.apply(body, shareEmailDeepLinkLines(url));
     }
     body.push("");
     body.push("— Sent from the Brevard District Exploration Dashboard.");
@@ -18870,6 +18980,12 @@
       helperEl.textContent = which === "sandbox"
         ? "Email a summary of your current Boundary Sandbox setup. Your default email client will open with the message pre-filled — you click Send. Attach the downloaded PDF for a richer summary."
         : "Email a summary of your current Scenario Planning setup. Your default email client will open with the message pre-filled — you click Send. Attach the downloaded PDF for a richer summary.";
+    }
+    var geoBtn = document.getElementById("share-scenario-geojson-btn");
+    if (geoBtn) {
+      geoBtn.hidden = which !== "sandbox";
+      geoBtn.disabled = false;
+      geoBtn.textContent = "Download GeoJSON";
     }
     shareDialogRefreshPreview();
     shareStatus("", null);
@@ -19021,14 +19137,109 @@
   }
 
   /**
-   * Captures the Mapbox GL canvas as a PNG dataUrl for the Save & Share PDF.
-   * Forces a fresh repaint and waits for the next `render` event (capped by a
-   * small timeout) before snapshotting, so the WebGL drawing buffer is
-   * guaranteed to be up to date. Requires the map to be initialized with
-   * `preserveDrawingBuffer: true`; otherwise the resulting image is blank.
-   * Returns null on any failure so the PDF export can continue without it.
+   * Geographic bbox covering the active share scenario for PDF map capture.
+   * Sandbox: all selected hexes across every boundary.
+   * Enrollment Planning: assignment polygons (or school points) for checked schools.
+   * @returns {[number,number,number,number]|null}
    */
-  function captureMapCanvasForPdf() {
+  function shareScenarioMapBbox() {
+    var which = scenarioActiveSubtabId();
+    var feats = [];
+    if (which === "sandbox") {
+      var bs = (BOUNDARY_SANDBOX && BOUNDARY_SANDBOX.boundaries) || [];
+      var seen = Object.create(null);
+      for (var bi = 0; bi < bs.length; bi++) {
+        var bag = bs[bi] && bs[bi].selectedHexKeys;
+        if (!bag) continue;
+        for (var hk in bag) {
+          if (!bag[hk] || seen[hk]) continue;
+          seen[hk] = true;
+          var geom = null;
+          try {
+            geom = typeof homeschoolHexGeometry === "function"
+              ? homeschoolHexGeometry(hk)
+              : null;
+          } catch (eG) {
+            geom = null;
+          }
+          if (geom) feats.push({ type: "Feature", geometry: geom, properties: {} });
+        }
+      }
+    } else {
+      var rows = scenarioLastFeederRows || [];
+      for (var ri = 0; ri < rows.length; ri++) {
+        var r = rows[ri];
+        if (!r || r.msid == null || isNaN(r.msid)) continue;
+        if (scenarioFeederChecked[r.msid] === false) continue;
+        var bf = findBoundaryFeatureForMsid(r.msid);
+        if (bf && bf.geometry) {
+          feats.push(bf);
+          continue;
+        }
+        var pt = schoolPointLonLatForMsid(r.msid, {});
+        if (pt && pt.length >= 2) {
+          var d = 0.02;
+          feats.push({
+            type: "Feature",
+            properties: {},
+            geometry: {
+              type: "Polygon",
+              coordinates: [[
+                [pt[0] - d, pt[1] - d],
+                [pt[0] + d, pt[1] - d],
+                [pt[0] + d, pt[1] + d],
+                [pt[0] - d, pt[1] + d],
+                [pt[0] - d, pt[1] - d]
+              ]]
+            }
+          });
+        }
+      }
+    }
+    if (!feats.length) return null;
+    return computeBbox({ type: "FeatureCollection", features: feats });
+  }
+
+  /** Fit the map to the scenario extent (instant), then wait until idle. */
+  function shareFitMapToScenarioExtent() {
+    return new Promise(function (resolve) {
+      if (typeof map === "undefined" || !map) {
+        resolve(false);
+        return;
+      }
+      var bbox = shareScenarioMapBbox();
+      if (!bbox) {
+        resolve(false);
+        return;
+      }
+      /* Degenerate / single-hex: pad slightly so fitBounds does not over-zoom oddly. */
+      if (bbox[0] === bbox[2] || bbox[1] === bbox[3]) {
+        var pad = 0.01;
+        bbox = [bbox[0] - pad, bbox[1] - pad, bbox[2] + pad, bbox[3] + pad];
+      }
+      var settled = false;
+      function done() {
+        if (settled) return;
+        settled = true;
+        try { map.off("idle", done); } catch (eOff) { /* ignore */ }
+        resolve(true);
+      }
+      try {
+        map.once("idle", done);
+        map.fitBounds(bbox, {
+          padding: { top: 56, bottom: 56, left: 56, right: 56 },
+          maxZoom: 14,
+          duration: 0
+        });
+      } catch (eFit) {
+        done();
+        return;
+      }
+      setTimeout(done, 900);
+    });
+  }
+
+  function shareCaptureMapSnapshotOnce() {
     return new Promise(function (resolve) {
       if (typeof map === "undefined" || !map || typeof map.getCanvas !== "function") {
         resolve(null);
@@ -19053,7 +19264,6 @@
         done = true;
         try { map.off("render", once); } catch (eOff) { /* ignore */ }
         try { map.off("idle", once); } catch (eOff2) { /* ignore */ }
-        /* Run on the next frame so the freshly-rendered buffer is committed. */
         if (typeof requestAnimationFrame === "function") {
           requestAnimationFrame(snapshot);
         } else {
@@ -19065,10 +19275,51 @@
       try {
         if (typeof map.triggerRepaint === "function") map.triggerRepaint();
       } catch (eR) { /* ignore */ }
-      /* Belt-and-suspenders: if neither event fires within 750ms (rare; e.g.
-         map already idle and no style changes pending), force a capture. */
       setTimeout(once, 750);
     });
+  }
+
+  /**
+   * Captures the Mapbox GL canvas as a PNG dataUrl for the Save & Share PDF.
+   * Temporarily fits the map to the full scenario extent (selected hexes /
+   * included school boundaries), snapshots, then restores the prior camera.
+   * Requires `preserveDrawingBuffer: true` or the image may be blank.
+   */
+  function captureMapCanvasForPdf() {
+    if (typeof map === "undefined" || !map || typeof map.getCanvas !== "function") {
+      return Promise.resolve(null);
+    }
+    var prevCam = null;
+    try {
+      prevCam = {
+        center: map.getCenter(),
+        zoom: map.getZoom(),
+        bearing: map.getBearing(),
+        pitch: map.getPitch()
+      };
+    } catch (eCam) {
+      prevCam = null;
+    }
+    return shareFitMapToScenarioExtent()
+      .then(function () {
+        return shareCaptureMapSnapshotOnce();
+      })
+      .then(function (cap) {
+        if (prevCam) {
+          try {
+            map.jumpTo(prevCam);
+          } catch (eJump) { /* ignore */ }
+        }
+        return cap;
+      })
+      .catch(function () {
+        if (prevCam) {
+          try {
+            map.jumpTo(prevCam);
+          } catch (eJump2) { /* ignore */ }
+        }
+        return null;
+      });
   }
 
   /** Capture an element to a canvas, returning { dataUrl, width, height }
@@ -19095,6 +19346,287 @@
     var t = String(s || "scenario").trim().replace(/[\\/:*?"<>|]+/g, "").replace(/\s+/g, "_");
     if (!t) t = "scenario";
     return t.substring(0, 60);
+  }
+
+  /**
+   * Draw a sandbox summary table into the PDF. Wide tables are split into
+   * column chunks (Metric + up to SHARE_PDF_TABLE_MAX_BOUNDARY_COLS boundaries)
+   * so cells stay readable on letter paper.
+   * Returns updated y.
+   */
+  var SHARE_PDF_TABLE_MAX_BOUNDARY_COLS = 5;
+
+  /** Parse "#rgb" / "#rrggbb" / "rgb(r,g,b)" into [r,g,b] or null. */
+  function sharePdfParseCssColor(color) {
+    if (color == null) return null;
+    var s = String(color).trim();
+    var hex = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.exec(s);
+    if (hex) {
+      var h = hex[1];
+      if (h.length === 3) {
+        h = h.charAt(0) + h.charAt(0) + h.charAt(1) + h.charAt(1) + h.charAt(2) + h.charAt(2);
+      }
+      return [
+        parseInt(h.slice(0, 2), 16),
+        parseInt(h.slice(2, 4), 16),
+        parseInt(h.slice(4, 6), 16)
+      ];
+    }
+    var rgb = /^rgba?\(\s*([0-9]{1,3})\s*,\s*([0-9]{1,3})\s*,\s*([0-9]{1,3})/i.exec(s);
+    if (rgb) {
+      return [
+        Math.min(255, Number(rgb[1])),
+        Math.min(255, Number(rgb[2])),
+        Math.min(255, Number(rgb[3]))
+      ];
+    }
+    return null;
+  }
+
+  function sharePdfDrawSandboxSummaryTable(doc, model, margin, maxW, pageW, pageH, y) {
+    if (!model || !model.headers || !model.headers.length || !model.rows) {
+      return y;
+    }
+    var dataColCount = model.headers.length - 1;
+    if (dataColCount < 1) return y;
+
+    var chunkSize = SHARE_PDF_TABLE_MAX_BOUNDARY_COLS;
+    var chunkStarts = [];
+    for (var cs = 0; cs < dataColCount; cs += chunkSize) {
+      chunkStarts.push(cs);
+    }
+    var colors = model.headerColors || [];
+    var outlines = model.headerOutlines || [];
+
+    for (var chi = 0; chi < chunkStarts.length; chi++) {
+      var start = chunkStarts[chi];
+      var end = Math.min(start + chunkSize, dataColCount);
+      var chunkHeaders = ["Metric"].concat(model.headers.slice(start + 1, end + 1));
+      var chunkColors = [null].concat(colors.slice(start + 1, end + 1));
+      var chunkOutlines = [null].concat(outlines.slice(start + 1, end + 1));
+      var chunkRows = [];
+      for (var ri = 0; ri < model.rows.length; ri++) {
+        var src = model.rows[ri];
+        chunkRows.push({
+          label: src.label,
+          values: src.values.slice(start, end),
+          kind: src.kind
+        });
+      }
+
+      y += 10;
+      if (y + 28 > pageH - margin) {
+        doc.addPage();
+        y = margin;
+      }
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(20, 20, 20);
+      var sectionLabel = "Summary table";
+      if (chunkStarts.length > 1) {
+        sectionLabel +=
+          " (boundaries " + (start + 1) + "-" + end + " of " + dataColCount + ")";
+      }
+      doc.text(sharePdfSafeText(sectionLabel), margin, y);
+      y += 14;
+
+      y = sharePdfDrawTableChunk(
+        doc,
+        chunkHeaders,
+        chunkRows,
+        margin,
+        maxW,
+        pageW,
+        pageH,
+        y,
+        chunkColors,
+        chunkOutlines
+      );
+    }
+    return y;
+  }
+
+  function sharePdfDrawTableChunk(
+    doc,
+    headers,
+    rows,
+    margin,
+    maxW,
+    pageW,
+    pageH,
+    y,
+    headerColors,
+    headerOutlines
+  ) {
+    var cols = headers.length;
+    if (cols < 2) return y;
+    var metricW = Math.min(130, Math.max(88, maxW * 0.28));
+    var dataW = (maxW - metricW) / (cols - 1);
+    var padX = 3;
+    var padY = 3;
+    var fontSize = cols > 5 ? 7 : 8;
+    var lineH = fontSize + 2;
+    var swatchSize = 8;
+    var swatchGap = 4;
+    headerColors = headerColors || [];
+    headerOutlines = headerOutlines || [];
+
+    function cellLines(text, width) {
+      doc.setFontSize(fontSize);
+      return doc.splitTextToSize(
+        sharePdfSafeText(String(text == null ? "" : text)),
+        Math.max(8, width - padX * 2)
+      );
+    }
+
+    function headerCellLines(text, width, hasSwatch) {
+      var textW = width - padX * 2;
+      if (hasSwatch) textW -= swatchSize + swatchGap;
+      doc.setFontSize(fontSize);
+      return doc.splitTextToSize(
+        sharePdfSafeText(String(text == null ? "" : text)),
+        Math.max(8, textW)
+      );
+    }
+
+    function rowHeightFor(cells, widths, bold, isHeader) {
+      doc.setFont("helvetica", bold ? "bold" : "normal");
+      var h = 0;
+      for (var i = 0; i < cells.length; i++) {
+        var hasSwatch = !!(isHeader && i > 0 && sharePdfParseCssColor(headerColors[i]));
+        var lines = isHeader
+          ? headerCellLines(cells[i], widths[i], hasSwatch)
+          : cellLines(cells[i], widths[i]);
+        var contentH = lines.length * lineH + padY * 2;
+        if (hasSwatch) contentH = Math.max(contentH, swatchSize + padY * 2);
+        h = Math.max(h, contentH);
+      }
+      return Math.max(h, lineH + padY * 2);
+    }
+
+    /* jsPDF setTextColor also updates the PDF fill (non-stroking) color used
+       for glyph paint. Re-apply fill immediately before every rect, otherwise
+       later cells inherit the dark text color as a solid fill. */
+    function paintCell(x, yCell, w, h, fillRgb, textRgb, text, bold, alignRight, swatchFill, swatchStroke) {
+      doc.setFillColor(fillRgb[0], fillRgb[1], fillRgb[2]);
+      doc.setDrawColor(203, 213, 225);
+      doc.rect(x, yCell, w, h, "F");
+      doc.rect(x, yCell, w, h, "S");
+
+      var textLeft = x + padX;
+      if (swatchFill) {
+        var sx = x + padX;
+        var sy = yCell + (h - swatchSize) / 2;
+        doc.setFillColor(swatchFill[0], swatchFill[1], swatchFill[2]);
+        if (swatchStroke) {
+          doc.setDrawColor(swatchStroke[0], swatchStroke[1], swatchStroke[2]);
+        } else {
+          doc.setDrawColor(15, 23, 42);
+        }
+        doc.rect(sx, sy, swatchSize, swatchSize, "F");
+        doc.rect(sx, sy, swatchSize, swatchSize, "S");
+        textLeft = sx + swatchSize + swatchGap;
+        doc.setDrawColor(203, 213, 225);
+      }
+
+      doc.setFont("helvetica", bold ? "bold" : "normal");
+      doc.setFontSize(fontSize);
+      doc.setTextColor(textRgb[0], textRgb[1], textRgb[2]);
+      var textWidth = alignRight
+        ? w - padX * 2
+        : Math.max(8, w - (textLeft - x) - padX);
+      var lines = doc.splitTextToSize(
+        sharePdfSafeText(String(text == null ? "" : text)),
+        textWidth
+      );
+      var ty = yCell + padY + fontSize;
+      for (var li = 0; li < lines.length; li++) {
+        if (alignRight) {
+          doc.text(lines[li], x + w - padX, ty, { align: "right" });
+        } else {
+          doc.text(lines[li], textLeft, ty);
+        }
+        ty += lineH;
+      }
+      /* Restore a light fill so a later caller is not stuck on text color. */
+      doc.setFillColor(255, 255, 255);
+    }
+
+    var colWidths = [metricW];
+    for (var wi = 1; wi < cols; wi++) colWidths.push(dataW);
+
+    function ensureSpace(needed, redrawHeader) {
+      if (y + needed > pageH - margin) {
+        doc.addPage();
+        y = margin;
+        if (redrawHeader) drawHeaderRow();
+      }
+    }
+
+    function drawHeaderRow() {
+      var cells = headers.slice();
+      var h = rowHeightFor(cells, colWidths, true, true);
+      ensureSpace(h, false);
+      var x = margin;
+      for (var ci = 0; ci < cols; ci++) {
+        var swFill = ci > 0 ? sharePdfParseCssColor(headerColors[ci]) : null;
+        var swStroke = ci > 0 ? sharePdfParseCssColor(headerOutlines[ci]) : null;
+        paintCell(
+          x,
+          y,
+          colWidths[ci],
+          h,
+          [241, 245, 249],
+          [15, 23, 42],
+          cells[ci],
+          true,
+          false,
+          swFill,
+          swStroke
+        );
+        x += colWidths[ci];
+      }
+      y += h;
+    }
+
+    drawHeaderRow();
+
+    for (var ri = 0; ri < rows.length; ri++) {
+      var row = rows[ri];
+      var cells = [row.label].concat(row.values);
+      var emphasis =
+        row.kind === "totals" ||
+        row.kind === "capacity" ||
+        row.kind === "utilization";
+      var h = rowHeightFor(cells, colWidths, emphasis, false);
+      ensureSpace(h, true);
+      var fillRgb = emphasis
+        ? [248, 250, 252]
+        : ri % 2 === 1
+          ? [248, 250, 252]
+          : [255, 255, 255];
+      var x = margin;
+      for (var cj = 0; cj < cols; cj++) {
+        paintCell(
+          x,
+          y,
+          colWidths[cj],
+          h,
+          fillRgb,
+          [30, 41, 59],
+          cells[cj],
+          emphasis,
+          cj > 0,
+          null,
+          null
+        );
+        x += colWidths[cj];
+      }
+      y += h;
+    }
+    doc.setTextColor(20, 20, 20);
+    doc.setFillColor(255, 255, 255);
+    return y + 6;
   }
 
   function shareGeneratePdf() {
@@ -19124,7 +19656,7 @@
       y += 22;
       doc.setFont("helvetica", "normal");
       doc.setFontSize(10);
-      doc.setTextColor(80);
+      doc.setTextColor(80, 80, 80);
       var dt = new Date();
       var dateStr = dt.toLocaleDateString(undefined, {
         year: "numeric", month: "short", day: "numeric"
@@ -19132,12 +19664,28 @@
       doc.text(sharePdfSafeText("Generated " + dateStr +
         " - Brevard K-8 Engagement Scenario Dashboard"), margin, y);
       y += 16;
-      doc.setDrawColor(220);
+      doc.setDrawColor(220, 220, 220);
       doc.line(margin, y, pageW - margin, y);
       y += 14;
 
+      /* Live scenario deep-link (also repeated at the end of the PDF). */
+      var deepLinkUrl = shareCurrentDeepLinkUrl(title);
+      doc.setTextColor(20, 20, 20);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      var lineHLink = 12;
+      y = sharePdfWriteDeepLink(
+        doc, deepLinkUrl, margin, maxW, pageW, pageH, y, lineHLink
+      );
+      if (deepLinkUrl) {
+        y += 6;
+        doc.setDrawColor(220, 220, 220);
+        doc.line(margin, y, pageW - margin, y);
+        y += 14;
+      }
+
       /* Text-summary section. */
-      doc.setTextColor(20);
+      doc.setTextColor(20, 20, 20);
       doc.setFontSize(11);
       var safeSummary = sharePdfSafeLines(summary.lines);
       var summaryText = safeSummary.join("\n");
@@ -19167,13 +19715,19 @@
         }
       }
 
+      /* Boundary Sandbox: native PDF summary table (no screenshot / pipe dump). */
+      if (which === "sandbox") {
+        var tableModel = buildSandboxSummaryTableModel();
+        if (tableModel) {
+          y = sharePdfDrawSandboxSummaryTable(
+            doc, tableModel, margin, maxW, pageW, pageH, y
+          );
+        }
+      }
+
       /* Capture targets per sub-tab. */
       var captureTargets = [];
       if (which === "sandbox") {
-        captureTargets.push({
-          el: document.getElementById("sandbox-summary-table-wrap"),
-          label: "Sandbox summary table"
-        });
         if (typeof map !== "undefined" && map && typeof map.getCanvas === "function") {
           captureTargets.push({ mapCanvas: true, label: "Map view" });
         }
@@ -19201,37 +19755,55 @@
           return shareCaptureElement(t.el, html2canvas);
         }).then(function (cap) {
           if (!cap || !cap.dataUrl) return;
-          if (y + 22 > pageH - margin) { doc.addPage(); y = margin; }
+          var labelH = 14;
+          var gapAfter = 14;
+          /* Keep section title with its image — if the remaining page cannot
+             hold the title plus a usable image block, start a new page first
+             (avoids an orphaned "Map view" heading at the bottom). */
+          var minImageBlock = t.mapCanvas ? 300 : 200;
+          if (y + labelH + minImageBlock > pageH - margin) {
+            doc.addPage();
+            y = margin;
+          }
           doc.setFont("helvetica", "bold");
           doc.setFontSize(11);
+          doc.setTextColor(20, 20, 20);
           doc.text(sharePdfSafeText(t.label), margin, y);
-          y += 14;
+          y += labelH;
           var ratio = cap.width > 0 ? maxW / cap.width : 1;
           var drawW = maxW;
           var drawH = cap.height * ratio;
           var availH = pageH - margin - y;
-          if (drawH > availH) {
-            /* Either fit on this page if mostly fitting, or move to a new
-               page. We prefer the larger image if more than ~half fits. */
-            if (availH < 200) {
-              doc.addPage();
-              y = margin;
-              availH = pageH - margin - y;
-            }
-            if (drawH > availH) {
-              ratio = availH / cap.height;
-              drawH = availH;
-              drawW = cap.width * ratio;
-            }
+          if (drawH > availH && availH > 40) {
+            ratio = availH / cap.height;
+            drawH = availH;
+            drawW = cap.width * ratio;
           }
           try {
             doc.addImage(cap.dataUrl, "PNG", margin, y, drawW, drawH);
-            y += drawH + 14;
+            y += drawH + gapAfter;
           } catch (eAdd) { /* ignore */ }
         });
       });
 
       return chain.then(function () {
+        /* Repeat deep-link at the end so it stays attached if pages are shared alone. */
+        if (deepLinkUrl) {
+          y += 8;
+          if (y + 40 > pageH - margin) {
+            doc.addPage();
+            y = margin;
+          }
+          doc.setDrawColor(220, 220, 220);
+          doc.line(margin, y, pageW - margin, y);
+          y += 14;
+          doc.setTextColor(20, 20, 20);
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(10);
+          y = sharePdfWriteDeepLink(
+            doc, deepLinkUrl, margin, maxW, pageW, pageH, y, lineHLink
+          );
+        }
         var name = shareSanitizeFileName(title) + ".pdf";
         doc.save(name);
         return true;
@@ -19265,6 +19837,277 @@
       });
   }
 
+  function shareCopyTextToClipboard(text) {
+    var s = String(text || "");
+    if (!s) return Promise.reject(new Error("No link to copy"));
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+      return navigator.clipboard.writeText(s);
+    }
+    return new Promise(function (resolve, reject) {
+      try {
+        var ta = document.createElement("textarea");
+        ta.value = s;
+        ta.setAttribute("readonly", "");
+        ta.style.position = "fixed";
+        ta.style.left = "-9999px";
+        ta.style.top = "0";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        var ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+        if (ok) resolve();
+        else reject(new Error("Copy command failed"));
+      } catch (e) {
+        reject(e);
+      }
+    });
+  }
+
+  function shareDialogHandleCopyLink() {
+    var btn = document.getElementById("share-scenario-copy-link-btn");
+    var titleEl = document.getElementById("share-scenario-title-input");
+    var title = titleEl && titleEl.value.trim() ? titleEl.value.trim() : "";
+    var url = shareCurrentDeepLinkUrl(title);
+    if (!url) {
+      shareStatus("Could not build a scenario link right now.", "error");
+      return;
+    }
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "Copying…";
+    }
+    shareCopyTextToClipboard(url)
+      .then(function () {
+        shareStatus("Live scenario link copied to the clipboard.", "success");
+        if (btn) btn.textContent = "Copied!";
+        setTimeout(function () {
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = "Copy Link";
+          }
+        }, 1600);
+      })
+      .catch(function () {
+        shareStatus(
+          "Could not copy automatically. Select and copy this link from Preview email body, or use the PDF clickable link.",
+          "error"
+        );
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = "Copy Link";
+        }
+      });
+  }
+
+  /** MultiPolygon geometry from hex polygon features when dissolve/union fails. */
+  function sandboxHexFeatsToMultiPolygonGeometry(feats) {
+    var polys = [];
+    if (!feats || !feats.length) return null;
+    for (var i = 0; i < feats.length; i++) {
+      var g = feats[i] && feats[i].geometry;
+      if (!g) continue;
+      if (g.type === "Polygon" && g.coordinates) {
+        polys.push(g.coordinates);
+      } else if (g.type === "MultiPolygon" && g.coordinates) {
+        for (var j = 0; j < g.coordinates.length; j++) {
+          polys.push(g.coordinates[j]);
+        }
+      }
+    }
+    if (!polys.length) return null;
+    if (polys.length === 1) {
+      return { type: "Polygon", coordinates: polys[0] };
+    }
+    return { type: "MultiPolygon", coordinates: polys };
+  }
+
+  /**
+   * Build a GeoJSON FeatureCollection of dissolved Boundary Sandbox selections.
+   * One feature per boundary that has at least one selected hex.
+   * @returns {{ fc: Object, featureCount: number }|null}
+   */
+  function buildSandboxBoundariesGeoJson() {
+    var bs = (BOUNDARY_SANDBOX && BOUNDARY_SANDBOX.boundaries) || [];
+    var exportTs = new Date().toISOString();
+    var features = [];
+    var atRows = [
+      { key: "zonedTraditional", label: "Zoned Traditional School" },
+      { key: "otherTraditional", label: "Other Traditional School" },
+      { key: "charter", label: "Charter School" },
+      { key: "choice", label: "Choice School" },
+      { key: "homeschool", label: "Homeschool" }
+    ];
+
+    for (var i = 0; i < bs.length; i++) {
+      var b = bs[i];
+      if (!b || !b.selectedHexKeys) continue;
+      var hexFeats = [];
+      var hexCount = 0;
+      for (var hk in b.selectedHexKeys) {
+        if (!b.selectedHexKeys[hk]) continue;
+        var geom = null;
+        try {
+          geom = typeof homeschoolHexGeometry === "function"
+            ? homeschoolHexGeometry(hk)
+            : null;
+        } catch (eG) {
+          geom = null;
+        }
+        if (!geom) continue;
+        hexCount++;
+        hexFeats.push({ type: "Feature", properties: {}, geometry: geom });
+      }
+      if (!hexCount || !hexFeats.length) continue;
+
+      var outGeom = null;
+      try {
+        var merged = mergePolygonFeatureArrayToOne(hexFeats);
+        if (merged && merged.geometry) {
+          outGeom = merged.geometry;
+        }
+      } catch (eM) {
+        outGeom = null;
+      }
+      if (!outGeom) {
+        outGeom = sandboxHexFeatsToMultiPolygonGeometry(hexFeats);
+      }
+      if (!outGeom) continue;
+
+      var baseMsid =
+        b.baseMsid != null && !isNaN(b.baseMsid) ? Number(b.baseMsid) : null;
+      var baseName = "";
+      if (baseMsid != null) {
+        var bm = masterRow(baseMsid);
+        baseName =
+          bm && bm.school_name ? String(bm.school_name).trim() : "";
+      }
+
+      var gt = b.gradeToggles || Object.create(null);
+      var onGrades = [];
+      for (var gi = 0; gi < SANDBOX_BOUNDARY_GRADE_CHIPS.length; gi++) {
+        var gc = SANDBOX_BOUNDARY_GRADE_CHIPS[gi];
+        if (gt[gc] !== false) onGrades.push(travelShedGradeDisplayLabel(gc));
+      }
+
+      var at = b.attendanceTypeToggles || Object.create(null);
+      var onAtt = [];
+      for (var ai = 0; ai < atRows.length; ai++) {
+        if (at[atRows[ai].key] !== false) onAtt.push(atRows[ai].label);
+      }
+
+      var byGrade = aggregateSandboxBoundaryByGrade(b);
+      var enrTotal = 0;
+      var byGradeParts = [];
+      var gKeys = Object.keys(byGrade).sort(function (a, c) {
+        return travelShedGradeSortKey(a) - travelShedGradeSortKey(c);
+      });
+      for (var gki = 0; gki < gKeys.length; gki++) {
+        var gk = gKeys[gki];
+        var cnt = byGrade[gk] || 0;
+        if (!cnt) continue;
+        enrTotal += cnt;
+        byGradeParts.push(travelShedGradeDisplayLabel(gk) + ": " + cnt);
+      }
+      var enrollmentSnapshot =
+        enrTotal.toLocaleString() +
+        (byGradeParts.length ? " (" + byGradeParts.join("; ") + ")" : "");
+
+      features.push({
+        type: "Feature",
+        properties: {
+          boundary_name: b.name || ("Boundary " + (i + 1)),
+          base_school_name: baseName || null,
+          base_school_msid: baseMsid,
+          grades_included: onGrades.length ? onGrades.join(", ") : "none",
+          attendance_types_included: onAtt.length ? onAtt.join(", ") : "none",
+          hex_count: hexCount,
+          enrollment_snapshot: enrollmentSnapshot,
+          export_timestamp: exportTs
+        },
+        geometry: outGeom
+      });
+    }
+
+    if (!features.length) return null;
+    return {
+      featureCount: features.length,
+      fc: {
+        type: "FeatureCollection",
+        name: "Boundary Sandbox selections",
+        features: features
+      }
+    };
+  }
+
+  function shareDownloadGeoJsonFile(fc, fileBase) {
+    var json = JSON.stringify(fc);
+    var blob = new Blob([json], { type: "application/geo+json" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = shareSanitizeFileName(fileBase || "boundary_sandbox") + ".geojson";
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () {
+      try { URL.revokeObjectURL(url); } catch (eR) { /* ignore */ }
+    }, 1500);
+  }
+
+  function shareDialogHandleGeoJson() {
+    if (scenarioActiveSubtabId() !== "sandbox") {
+      shareStatus("GeoJSON export is only available from Boundary Sandbox.", "error");
+      return;
+    }
+    var btn = document.getElementById("share-scenario-geojson-btn");
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "Building GeoJSON…";
+    }
+    shareStatus("Building GeoJSON of your boundary selections…", null);
+    /* Dissolve can be CPU-heavy; yield so the status text paints first. */
+    setTimeout(function () {
+      try {
+        var built = buildSandboxBoundariesGeoJson();
+        if (!built || !built.fc || !built.featureCount) {
+          shareStatus(
+            "No boundaries with hex selections to export. Draw or select hexes first.",
+            "error"
+          );
+          return;
+        }
+        var titleEl = document.getElementById("share-scenario-title-input");
+        var baseName =
+          titleEl && titleEl.value.trim()
+            ? titleEl.value.trim()
+            : "Boundary_Sandbox";
+        shareDownloadGeoJsonFile(built.fc, baseName);
+        shareStatus(
+          "GeoJSON downloaded (" +
+            built.featureCount +
+            " boundar" +
+            (built.featureCount === 1 ? "y" : "ies") +
+            ").",
+          "success"
+        );
+      } catch (err) {
+        shareStatus(
+          "Could not build GeoJSON (" +
+            (err && err.message ? err.message : "unknown error") +
+            ").",
+          "error"
+        );
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = "Download GeoJSON";
+        }
+      }
+    }, 30);
+  }
+
   /* -------------------------------------------------------------------------
    * Wire up button + dialog + URL-hash deep-link reading.
    * ------------------------------------------------------------------------- */
@@ -19290,6 +20133,10 @@
     if (sendBtn) sendBtn.addEventListener("click", shareDialogHandleSend);
     var pdfBtn = document.getElementById("share-scenario-pdf-btn");
     if (pdfBtn) pdfBtn.addEventListener("click", shareDialogHandlePdf);
+    var copyLinkBtn = document.getElementById("share-scenario-copy-link-btn");
+    if (copyLinkBtn) copyLinkBtn.addEventListener("click", shareDialogHandleCopyLink);
+    var geoJsonBtn = document.getElementById("share-scenario-geojson-btn");
+    if (geoJsonBtn) geoJsonBtn.addEventListener("click", shareDialogHandleGeoJson);
     /* Live preview updates as the user types. */
     ["share-scenario-title-input",
      "share-scenario-comments-input",

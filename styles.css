@@ -5431,6 +5431,7 @@ body {
 .share-scenario-card-foot {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   padding: 12px 20px 16px;
   border-top: 1px solid #e2e8f0;
@@ -5442,8 +5443,7 @@ body {
 }
 
 .share-scenario-primary-btn,
-.share-scenario-secondary-btn,
-.share-scenario-cancel-btn {
+.share-scenario-secondary-btn {
   appearance: none;
   border: 1px solid transparent;
   font: inherit;
@@ -5498,29 +5498,18 @@ body {
   cursor: not-allowed;
 }
 
-.share-scenario-cancel-btn {
-  background: transparent;
-  color: #475569;
-  border-color: transparent;
-}
-
-.share-scenario-cancel-btn:hover {
-  background: #f1f5f9;
-  color: #0f172a;
-}
-
-.share-scenario-cancel-btn:focus-visible {
-  outline: 2px solid #2563eb;
-  outline-offset: 2px;
-}
-
 @media (max-width: 520px) {
   .share-scenario-card-foot {
     flex-wrap: wrap;
   }
   .share-scenario-foot-spacer {
     flex-basis: 100%;
+    height: 0;
+    margin: 0;
     order: 0;
+  }
+  .share-scenario-primary-btn {
+    margin-left: auto;
   }
 }
 
