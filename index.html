@@ -20,7 +20,7 @@
       href="https://api.mapbox.com/mapbox-gl-js/v3.8.0/mapbox-gl.css"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=20260624-3" />
+    <link rel="stylesheet" href="styles.css?v=20260715-1" />
     <script src="config.local.js" onerror="void 0"></script>
     <script>
       /* Google Analytics 4 — only runs when config.local.js sets GA4_MEASUREMENT_ID (G-…). */
@@ -88,6 +88,7 @@
           ["data/processed/ese_feeder_matrix.json", "json"],
           ["geo/SchoolIsochrones.geojson", "json"],
           ["data/processed/bps_employee_count_by_msid.json", "json"],
+          ["data/processed/hex_assignment_owners.json", "json"],
           ["data/processed/school_master_index.json", "json"],
           ["data/school_master.csv", "text"]
         ];
@@ -464,7 +465,7 @@
             aria-haspopup="dialog"
             aria-controls="welcome-changelog-overlay"
           >
-            Change Log - Last Updated June 24, 2026
+            Change Log - Last Updated July 15, 2026
           </button>
         </p>
       </div>
@@ -493,6 +494,32 @@
           </button>
         </header>
         <div class="welcome-changelog-card__body">
+          <section class="welcome-changelog-entry">
+            <h3 class="welcome-changelog-entry__date">July 15, 2026</h3>
+            <ul class="welcome-changelog-entry__list">
+              <li>
+                Added PK students to enrollment and utilization summary table in
+                boundary sandbox.
+              </li>
+              <li>
+                Added option to count choice-in students towards base schools'
+                enrollment and utilization in boundary sandbox.
+              </li>
+              <li>
+                Reconfigured defaults to include choice-in and exclude choice-out
+                students for base school enrollment and utilization in boundary
+                sandbox.
+              </li>
+              <li>
+                Improved accuracy of hex assignment rules when base schools are
+                loaded in boundary sandbox.
+              </li>
+              <li>
+                Updated scenario saving and sharing options to include direct
+                deeplink and GeoJSON download.
+              </li>
+            </ul>
+          </section>
           <section class="welcome-changelog-entry">
             <h3 class="welcome-changelog-entry__date">June 24, 2026</h3>
             <ul class="welcome-changelog-entry__list">

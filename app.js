@@ -28,6 +28,12 @@
     schoolIsochrones: "geo/SchoolIsochrones.geojson",
     /** On-site BPS employee counts by MSID (see scripts/export_bps_employee_count_from_xlsx.py). */
     bpsEmployeeCount: "data/processed/bps_employee_count_by_msid.json",
+    /**
+     * Precomputed hexKey → assignment-owner MSID per ES/MS/HS layer
+     * (see scripts/build_hex_assignment_owners.cjs). Speeds Boundary Sandbox
+     * base-school prefill; live calc is the fallback when missing.
+     */
+    hexAssignmentOwners: "data/processed/hex_assignment_owners.json",
   };
 
   /**
@@ -412,6 +418,15 @@
    * lasso/paintbrush selections look contiguous. Built once after the
    * student-hex index loads (see `buildEmptyHexGeometryMesh`). */
   var EMPTY_HEX_GEOMETRY = null;
+  /** Cache: assignment layer key ("es"|"ms"|"hs") → hexKey → winning school MSID. */
+  var SANDBOX_HEX_PLURALITY_OWNER_CACHE = Object.create(null);
+  /**
+   * Durable precomputed ownership from hex_assignment_owners.json (survives
+   * plurality-cache resets when the empty hex mesh is rebuilt).
+   */
+  var SANDBOX_HEX_ASSIGNMENT_OWNERS_PRECOMPUTED = null;
+  /** Cache: msid → hexKey set from centroid-in-boundary scans (empty / gap infill). */
+  var SANDBOX_CENTROID_IN_BOUNDARY_CACHE = Object.create(null);
   /**
    * Per-hex arrays of sandbox detail rows for homeschool students (`studentHexKey` → rows).
    * Built from homeschool GeoJSON when layers refresh.
@@ -578,16 +593,35 @@
   var SANDBOX_DEFAULT_OFF_GRADES = ["PK", "__NOGRADE__"];
   /** Attendance-type buckets that start unchecked on every boundary. */
   var SANDBOX_DEFAULT_OFF_ATTENDANCE_TYPES = ["charter", "choice", "homeschool"];
+  /** Off by default when a base school is selected (only zoned + choice-in stay on). */
+  var SANDBOX_DEFAULT_OFF_ATTENDANCE_TYPES_WITH_BASE = [
+    "otherTraditional",
+    "charter",
+    "choice",
+    "homeschool"
+  ];
   /** Per-boundary grade-chip strip order: PK first, then K-12, then No-grade. */
   var SANDBOX_BOUNDARY_GRADE_CHIPS = ["PK"]
     .concat(SANDBOX_FIXED_GRADE_CHIPS)
     .concat(["__NOGRADE__"]);
 
+  function sandboxBoundaryHasBaseMsid(b) {
+    return !!(b && b.baseMsid != null && !isNaN(Number(b.baseMsid)));
+  }
+
+  function sandboxDefaultOffAttendanceTypesForBoundary(b) {
+    return sandboxBoundaryHasBaseMsid(b)
+      ? SANDBOX_DEFAULT_OFF_ATTENDANCE_TYPES_WITH_BASE
+      : SANDBOX_DEFAULT_OFF_ATTENDANCE_TYPES;
+  }
+
   function sandboxDefaultGradeIncluded(gradeCanon) {
     return SANDBOX_DEFAULT_OFF_GRADES.indexOf(gradeCanon) === -1;
   }
-  function sandboxDefaultAttendanceTypeIncluded(atype) {
-    return SANDBOX_DEFAULT_OFF_ATTENDANCE_TYPES.indexOf(atype) === -1;
+  function sandboxDefaultAttendanceTypeIncluded(atype, boundaryOpt) {
+    var b =
+      boundaryOpt !== undefined ? boundaryOpt : sandboxActiveBoundary();
+    return sandboxDefaultOffAttendanceTypesForBoundary(b).indexOf(atype) === -1;
   }
   /** Fresh gradeToggles object pre-seeded with the default-off grade buckets. */
   function sandboxMakeDefaultGradeToggles() {
@@ -598,10 +632,13 @@
     return t;
   }
   /** Fresh attendanceTypeToggles object pre-seeded with the default-off types. */
-  function sandboxMakeDefaultAttendanceTypeToggles() {
+  function sandboxMakeDefaultAttendanceTypeToggles(boundaryOpt) {
+    var b =
+      boundaryOpt !== undefined ? boundaryOpt : sandboxActiveBoundary();
+    var offs = sandboxDefaultOffAttendanceTypesForBoundary(b);
     var t = Object.create(null);
-    for (var i = 0; i < SANDBOX_DEFAULT_OFF_ATTENDANCE_TYPES.length; i++) {
-      t[SANDBOX_DEFAULT_OFF_ATTENDANCE_TYPES[i]] = false;
+    for (var i = 0; i < offs.length; i++) {
+      t[offs[i]] = false;
     }
     return t;
   }
@@ -727,6 +764,282 @@
     return false;
   }
 
+  /** Enabled grades on a boundary for conflict checks (PK + K-12 + No-grade). */
+  function sandboxEnabledGradeSetForConflict(b) {
+    var set = Object.create(null);
+    if (!b) return set;
+    var t = b.gradeToggles || Object.create(null);
+    for (var i = 0; i < SANDBOX_BOUNDARY_GRADE_CHIPS.length; i++) {
+      var g = SANDBOX_BOUNDARY_GRADE_CHIPS[i];
+      if (t[g] !== false) set[g] = true;
+    }
+    return set;
+  }
+
+  function sandboxGradeSetsIntersect(aSet, bSet) {
+    if (!aSet || !bSet) return false;
+    for (var g in aSet) {
+      if (bSet[g]) return true;
+    }
+    return false;
+  }
+
+  /**
+   * If another boundary already uses `proposedMsid` as base and enabled grades
+   * overlap with `boundary`, return that other boundary; else null.
+   */
+  function sandboxBaseMsidConflictsWithOthers(boundary, proposedMsid) {
+    if (!boundary || proposedMsid == null || isNaN(Number(proposedMsid))) return null;
+    var want = Number(proposedMsid);
+    var mine = sandboxEnabledGradeSetForConflict(boundary);
+    for (var i = 0; i < BOUNDARY_SANDBOX.boundaries.length; i++) {
+      var other = BOUNDARY_SANDBOX.boundaries[i];
+      if (other.id === boundary.id) continue;
+      if (other.baseMsid == null || isNaN(Number(other.baseMsid))) continue;
+      if (Number(other.baseMsid) !== want) continue;
+      if (sandboxGradeSetsIntersect(mine, sandboxEnabledGradeSetForConflict(other))) {
+        return other;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * If enabling `grade` on `boundary` would overlap the same base school’s
+   * enabled grades on another boundary, return that other boundary; else null.
+   */
+  function sandboxEnablingGradeWouldConflictWithSameBase(boundary, grade) {
+    if (!boundary || !grade || boundary.baseMsid == null || isNaN(Number(boundary.baseMsid))) {
+      return null;
+    }
+    var base = Number(boundary.baseMsid);
+    for (var i = 0; i < BOUNDARY_SANDBOX.boundaries.length; i++) {
+      var other = BOUNDARY_SANDBOX.boundaries[i];
+      if (other.id === boundary.id) continue;
+      if (other.baseMsid == null || Number(other.baseMsid) !== base) continue;
+      var theirs = sandboxEnabledGradeSetForConflict(other);
+      if (theirs[grade]) return other;
+    }
+    return null;
+  }
+
+  function sandboxDetailStableId(d, hexKey, fallbackIdx) {
+    if (d && d._oid) return String(d._oid);
+    var ms = d && d.MSID != null ? String(d.MSID) : "";
+    var g = d ? sandboxGradeCanonicalForDetail(d) : "";
+    return "x:" + String(hexKey || "") + ":" + ms + ":" + g + ":" + String(fallbackIdx || 0);
+  }
+
+  function sandboxBoundaryChoiceInEnabled(b) {
+    return !!(b && b.baseMsid != null && !isNaN(Number(b.baseMsid)) && b.choiceInFromOutside !== false);
+  }
+
+  /**
+   * Whether a school should default PK ON in the sandbox. Elementaries get PK
+   * when grades_served lists it or when PK attendance is observed. Secondary
+   * schools (MS / HS / JrSr) often have a small on-site PK program; turning PK
+   * ON there incorrectly counted all grade-PK zonedTraditional students who
+   * merely *live* in the secondary footprint (zoned/attending elementaries) —
+   * which overstated Cocoa HS / Palm Bay HS sandbox enrollment by ~150.
+   */
+  function sandboxSchoolServesPk(msid) {
+    if (msid == null || isNaN(Number(msid))) return false;
+    var m = masterRow(msid);
+    if (m) {
+      var served = parseGradesServedToCanonList(m.grades_served);
+      if (served.indexOf("PK") !== -1) return true;
+      var lv = String(m.school_level || "").toLowerCase().trim();
+      if (lv && lv !== "elementary") return false;
+    }
+    try {
+      if (scenarioMsidHasPkStudent(msid)) return true;
+    } catch (ePk) {
+      /* scenario helpers may not be ready during early init */
+    }
+    var byDet =
+      STUDENT_HEX_INDEX && STUDENT_HEX_INDEX.detailsByMsid
+        ? STUDENT_HEX_INDEX.detailsByMsid[String(Number(msid))]
+        : null;
+    if (!byDet) return false;
+    for (var hk in byDet) {
+      var arr = byDet[hk];
+      if (!arr) continue;
+      for (var i = 0; i < arr.length; i++) {
+        if (canonicalStudentGradeCode(arr[i] && arr[i].Grade) === "PK") return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Residence (selected-hex) detail filter for a boundary with a secondary base
+   * school: PK kids in the footprint are almost always elementary-zoned /
+   * elementary-attending. Counting them toward an MS/HS/JrSr base when PK is
+   * toggled on inflated enrollment. Keep PK residence only when they attend
+   * that base (rare on-site PK). Choice-IN still handles outside-selection PK
+   * who attend the base.
+   */
+  function sandboxResidenceDetailAllowedForBoundary(d, b) {
+    if (!d || !b) return true;
+    if (sandboxGradeCanonicalForDetail(d) !== "PK") return true;
+    if (b.baseMsid == null || isNaN(Number(b.baseMsid))) return true;
+    var m = masterRow(b.baseMsid);
+    var lv = m ? String(m.school_level || "").toLowerCase().trim() : "";
+    if (!lv || lv === "elementary") return true;
+    var att = parseInt(String(d.MSID != null ? d.MSID : "").trim(), 10);
+    return !isNaN(att) && att === Number(b.baseMsid);
+  }
+
+  /**
+   * True when detail attending school S is a true choice-IN to boundary b:
+   * home hex outside b’s selection and zoned school ≠ S.
+   */
+  function sandboxDetailIsChoiceInForBoundary(d, b, homeHexKey) {
+    if (!d || !b || b.baseMsid == null || isNaN(Number(b.baseMsid))) return false;
+    var att = parseInt(String(d.MSID != null ? d.MSID : "").trim(), 10);
+    if (isNaN(att) || att !== Number(b.baseMsid)) return false;
+    if (homeHexKey && b.selectedHexKeys && b.selectedHexKeys[homeHexKey]) return false;
+    var zoned = zonedMsidForDetailForAggregate(d);
+    if (zoned != null && !isNaN(zoned) && Number(zoned) === Number(b.baseMsid)) {
+      return false;
+    }
+    var gc = sandboxGradeCanonicalForDetail(d);
+    if (b.gradeToggles && b.gradeToggles[gc] === false) return false;
+    return true;
+  }
+
+  /**
+   * Build cross-boundary choice-IN claim registry (present-day hex layer).
+   * Claimed students are added only to the claiming boundary and excluded from
+   * every other boundary’s residence enrollment.
+   */
+  function buildSandboxChoiceInClaimRegistry() {
+    var claimedByOid = Object.create(null);
+    var choiceInByGradeByBoundaryId = Object.create(null);
+    var choiceInCountByBoundaryId = Object.create(null);
+    var choiceInEthnicityByBoundaryId = Object.create(null);
+    var choiceInLunchByBoundaryId = Object.create(null);
+    /** boundaryId → zoned MSID key → count (for “by current assignment” list). */
+    var choiceInByZonedByBoundaryId = Object.create(null);
+    var excludedCountByHomeBoundaryId = Object.create(null);
+    var excludedClaimantLabelsByHomeBoundaryId = Object.create(null);
+    var bs = BOUNDARY_SANDBOX.boundaries || [];
+    var byDet =
+      STUDENT_HEX_INDEX && STUDENT_HEX_INDEX.detailsByMsid
+        ? STUDENT_HEX_INDEX.detailsByMsid
+        : null;
+
+    for (var i = 0; i < bs.length; i++) {
+      var b = bs[i];
+      if (!sandboxBoundaryChoiceInEnabled(b)) continue;
+      var baseKey = String(Number(b.baseMsid));
+      var hexMap = byDet ? byDet[baseKey] : null;
+      if (!hexMap) {
+        choiceInCountByBoundaryId[b.id] = 0;
+        choiceInByGradeByBoundaryId[b.id] = Object.create(null);
+        choiceInEthnicityByBoundaryId[b.id] = Object.create(null);
+        choiceInLunchByBoundaryId[b.id] = Object.create(null);
+        choiceInByZonedByBoundaryId[b.id] = Object.create(null);
+        continue;
+      }
+      var byGrade = Object.create(null);
+      var byEth = Object.create(null);
+      var byLunch = Object.create(null);
+      var byZonedCi = Object.create(null);
+      var n = 0;
+      var baseShort =
+        schoolShortNameForMsid(Number(b.baseMsid)) ||
+        (b.name && String(b.name).trim()) ||
+        "another school";
+      for (var hk in hexMap) {
+        if (!Object.prototype.hasOwnProperty.call(hexMap, hk)) continue;
+        if (b.selectedHexKeys && b.selectedHexKeys[hk]) continue;
+        var arr = hexMap[hk];
+        if (!arr || !arr.length) continue;
+        for (var di = 0; di < arr.length; di++) {
+          var d = arr[di];
+          if (!sandboxDetailIsChoiceInForBoundary(d, b, hk)) continue;
+          var oid = sandboxDetailStableId(d, hk, di);
+          if (claimedByOid[oid]) continue;
+          claimedByOid[oid] = {
+            claimantBoundaryId: b.id,
+            claimantName: b.name || ("Boundary " + (i + 1)),
+            baseMsid: Number(b.baseMsid),
+            baseName: baseShort
+          };
+          var gc = sandboxGradeCanonicalForDetail(d);
+          byGrade[gc] = (byGrade[gc] || 0) + 1;
+          var ethCi =
+            d.ethnicity != null && String(d.ethnicity).trim() !== ""
+              ? String(d.ethnicity).trim()
+              : "Unspecified";
+          byEth[ethCi] = (byEth[ethCi] || 0) + 1;
+          var lunchCi = normalizeSandboxLunchStatForPie(d.lunch_stat);
+          byLunch[lunchCi] = (byLunch[lunchCi] || 0) + 1;
+          var zmCi = zonedMsidForDetailForAggregate(d);
+          var zKeyCi = zmCi != null ? String(zmCi) : "__none__";
+          byZonedCi[zKeyCi] = (byZonedCi[zKeyCi] || 0) + 1;
+          n++;
+        }
+      }
+      choiceInCountByBoundaryId[b.id] = n;
+      choiceInByGradeByBoundaryId[b.id] = byGrade;
+      choiceInEthnicityByBoundaryId[b.id] = byEth;
+      choiceInLunchByBoundaryId[b.id] = byLunch;
+      choiceInByZonedByBoundaryId[b.id] = byZonedCi;
+    }
+
+    /* Count residence exclusions per home boundary (students claimed elsewhere). */
+    var byHexDetEx =
+      STUDENT_HEX_INDEX && STUDENT_HEX_INDEX.detailsByHexKey
+        ? STUDENT_HEX_INDEX.detailsByHexKey
+        : null;
+    if (byHexDetEx) {
+      for (var hi = 0; hi < bs.length; hi++) {
+        var home = bs[hi];
+        var exN = 0;
+        var byClaim = Object.create(null);
+        for (var hHex in home.selectedHexKeys) {
+          if (!home.selectedHexKeys[hHex]) continue;
+          var hArr = byHexDetEx[hHex];
+          if (!hArr) continue;
+          for (var hj = 0; hj < hArr.length; hj++) {
+            var hd = hArr[hj];
+            var hoid = sandboxDetailStableId(hd, hHex, hj);
+            var claim = claimedByOid[hoid];
+            if (!claim || claim.claimantBoundaryId === home.id) continue;
+            exN++;
+            var lab = claim.baseName || claim.claimantName || "another school";
+            if (!byClaim[claim.claimantBoundaryId]) {
+              byClaim[claim.claimantBoundaryId] = { label: lab, count: 0 };
+            }
+            byClaim[claim.claimantBoundaryId].count++;
+          }
+        }
+        excludedCountByHomeBoundaryId[home.id] = exN;
+        excludedClaimantLabelsByHomeBoundaryId[home.id] = byClaim;
+      }
+    }
+
+    return {
+      claimedByOid: claimedByOid,
+      choiceInCountByBoundaryId: choiceInCountByBoundaryId,
+      choiceInByGradeByBoundaryId: choiceInByGradeByBoundaryId,
+      choiceInEthnicityByBoundaryId: choiceInEthnicityByBoundaryId,
+      choiceInLunchByBoundaryId: choiceInLunchByBoundaryId,
+      choiceInByZonedByBoundaryId: choiceInByZonedByBoundaryId,
+      excludedCountByHomeBoundaryId: excludedCountByHomeBoundaryId,
+      excludedClaimantLabelsByHomeBoundaryId: excludedClaimantLabelsByHomeBoundaryId
+    };
+  }
+
+  function sandboxDetailClaimedByOtherBoundary(d, hexKey, idx, boundaryId, registry) {
+    if (!registry || !registry.claimedByOid) return false;
+    var oid = sandboxDetailStableId(d, hexKey, idx);
+    var claim = registry.claimedByOid[oid];
+    return !!(claim && claim.claimantBoundaryId !== boundaryId);
+  }
+
   /** Build a new empty boundary record. */
   function sandboxMakeBoundaryRecord(slotIndex, customName) {
     var pal = SANDBOX_BOUNDARY_PALETTE[slotIndex % SANDBOX_BOUNDARY_PALETTE.length];
@@ -741,6 +1054,8 @@
       confirmedHexKeysSnapshot: Object.create(null),
       gradeToggles: sandboxMakeDefaultGradeToggles(),
       attendanceTypeToggles: sandboxMakeDefaultAttendanceTypeToggles(),
+      /** When true and baseMsid set: add present-day choice-IN to base from outside selection. */
+      choiceInFromOutside: false,
       schoolListExpanded: { attendance: false, zoned: false },
       lassoRegionFootprintFeature: null,
     };
@@ -2088,6 +2403,7 @@
       TRAVEL_SHED_RESIDENCE_INDEX = null;
       EMPTY_HEX_GEOMETRY = null;
     }
+    resetSandboxHexPluralityOwnerCache();
     rebuildCharterAttendanceGradesLabelByMsid();
     HOMESCHOOL_HEX_COUNTS = buildHomeschoolHexCounts(
       homeschoolFc && homeschoolFc.features ? homeschoolFc : null
@@ -3311,6 +3627,7 @@
           TRAVEL_SHED_RESIDENCE_INDEX = null;
           EMPTY_HEX_GEOMETRY = null;
         }
+        resetSandboxHexPluralityOwnerCache();
         rebuildCharterAttendanceGradesLabelByMsid();
         HOMESCHOOL_HEX_COUNTS = buildHomeschoolHexCounts(
           homeschoolFc && homeschoolFc.features ? homeschoolFc : null
@@ -3490,6 +3807,13 @@
         .catch(function () {
           return { type: "FeatureCollection", features: [] };
         }),
+      smartFetch(DATA.hexAssignmentOwners)
+        .then(function (r) {
+          return r.ok ? r.json() : null;
+        })
+        .catch(function () {
+          return null;
+        }),
     ])
       .then(function (results) {
         /* Index map (kept aligned with the Promise.all order above):
@@ -3498,7 +3822,7 @@
              2  hs                     8  schoolBoardDistricts  14  bpsEmployeeCount
              3  schools                9  charterSchoolLocations 15  privateSchoolLocations
              4  masterByMsid (object) 10  meadowlaneCapture…    16  homeschoolStudentHexagons
-             5  sankeyEsMs            11  municipalBoundaries
+             5  sankeyEsMs            11  municipalBoundaries   17  hexAssignmentOwners
            travelImpact was removed (#4) — its slot is gone, all later indices shift down by 1. */
         MASTER_BY_MSID = results[4] || null;
         SANKEY_CACHE = results[5];
@@ -3507,6 +3831,7 @@
         ESE_FEEDER_MATRIX = results[12] || null;
         BPS_EMPLOYEE_COUNT_BY_MSID =
           results[14] && results[14].byMsid ? results[14].byMsid : null;
+        applySandboxHexAssignmentOwners(results[17]);
         MIDDLE_SCHOOL_MSID_SET = buildMiddleSchoolMsidSetFromSchoolsFc(
           enrichSchoolsFcWithMasterType(results[3])
         );
@@ -4133,11 +4458,38 @@
     return merged && merged.geometry ? merged : null;
   }
 
+  /** Cap for hex→polygon union when building the light region tint (no base school). */
+  var SANDBOX_LASSO_FOOTPRINT_HEX_CAP = 800;
+
+  /** Assignment-boundary polygon for a base school (instant footprint; no hex union). */
+  function sandboxAssignmentBoundaryFootprintFeature(msid) {
+    if (msid == null || isNaN(Number(msid))) return null;
+    var bf = findBoundaryFeatureForMsid(Number(msid));
+    if (!bf || !bf.geometry) return null;
+    return { type: "Feature", properties: {}, geometry: bf.geometry };
+  }
+
   /**
-   * Sets `lassoRegionFootprintFeature` to the union of all currently selected hex geometries (light green tint
-   * between hexes, including base-school zoned loads). Does not change hex selection state.
+   * Sets `lassoRegionFootprintFeature` for the light region tint. With a base
+   * school, uses that school's official assignment polygon (cheap + contiguous).
+   * Otherwise unions selected hex geometries up to SANDBOX_LASSO_FOOTPRINT_HEX_CAP.
    */
   function syncSandboxLassoFootprintFromSelectedHexGeometries() {
+    var active = sandboxActiveBoundary();
+    if (
+      active &&
+      active.baseMsid != null &&
+      !isNaN(Number(active.baseMsid))
+    ) {
+      var assignmentFoot = sandboxAssignmentBoundaryFootprintFeature(
+        active.baseMsid
+      );
+      if (assignmentFoot) {
+        BOUNDARY_SANDBOX.lassoRegionFootprintFeature = assignmentFoot;
+        syncBoundarySandboxLassoRegionSourcesFromAccumulator();
+        return;
+      }
+    }
     if (!STUDENT_HEX_INDEX || !STUDENT_HEX_INDEX.geometryByHexKey) {
       BOUNDARY_SANDBOX.lassoRegionFootprintFeature = null;
       syncBoundarySandboxLassoRegionSourcesFromAccumulator();
@@ -4154,12 +4506,19 @@
         continue;
       }
       feats.push({ type: "Feature", properties: {}, geometry: g });
+      if (feats.length > SANDBOX_LASSO_FOOTPRINT_HEX_CAP) {
+        /* Too large to union safely — fill still shows via per-hex feature-state. */
+        BOUNDARY_SANDBOX.lassoRegionFootprintFeature = null;
+        syncBoundarySandboxLassoRegionSourcesFromAccumulator();
+        return;
+      }
     }
     if (!feats.length) {
       BOUNDARY_SANDBOX.lassoRegionFootprintFeature = null;
     } else {
       var merged = mergePolygonFeatureArrayToOne(feats);
-      BOUNDARY_SANDBOX.lassoRegionFootprintFeature = merged && merged.geometry ? merged : null;
+      BOUNDARY_SANDBOX.lassoRegionFootprintFeature =
+        merged && merged.geometry ? merged : null;
     }
     syncBoundarySandboxLassoRegionSourcesFromAccumulator();
   }
@@ -4549,7 +4908,7 @@
     active.selectedHexKeys = Object.create(null);
     active.confirmedHexKeysSnapshot = Object.create(null);
     active.gradeToggles = sandboxMakeDefaultGradeToggles();
-    active.attendanceTypeToggles = sandboxMakeDefaultAttendanceTypeToggles();
+    active.attendanceTypeToggles = sandboxMakeDefaultAttendanceTypeToggles(active);
     active.schoolListExpanded = { attendance: false, zoned: false };
     active.lassoRegionFootprintFeature = null;
     clearBoundarySandboxLassoLine();
@@ -4721,18 +5080,31 @@
        Polygon-union output is unreliable as a stroke source when adjacent
        hex vertices differ by sub-meter float noise — it produces a
        MultiPolygon and you end up drawing each hex's edges. Edge counting
-       always yields a clean perimeter. */
-    var perHexFeats = [];
+       always yields a clean perimeter.
+       Skip when a base school drives the footprint from the official
+       assignment polygon — dark selection outline is handled separately. */
+    var outlineFc = emptyFc;
     var sb = sandboxActiveBoundary();
-    var bag = sb ? sb.selectedHexKeys : BOUNDARY_SANDBOX.selectedHexKeys;
-    for (var sk in bag) {
-      if (!Object.prototype.hasOwnProperty.call(bag, sk) || !bag[sk]) continue;
-      var gSk = homeschoolHexGeometry(sk);
-      if (!gSk) continue;
-      perHexFeats.push({ type: "Feature", properties: {}, geometry: gSk });
+    var useBasePoly =
+      !!(sb && sb.baseMsid != null && !isNaN(Number(sb.baseMsid)));
+    if (!useBasePoly) {
+      var perHexFeats = [];
+      var bag = sb ? sb.selectedHexKeys : BOUNDARY_SANDBOX.selectedHexKeys;
+      for (var sk in bag) {
+        if (!Object.prototype.hasOwnProperty.call(bag, sk) || !bag[sk]) continue;
+        var gSk = homeschoolHexGeometry(sk);
+        if (!gSk) continue;
+        perHexFeats.push({ type: "Feature", properties: {}, geometry: gSk });
+        if (perHexFeats.length > SANDBOX_LASSO_FOOTPRINT_HEX_CAP) {
+          perHexFeats = [];
+          break;
+        }
+      }
+      if (perHexFeats.length) {
+        outlineFc =
+          sandboxConfirmedHexUnionToOutlineLineFeature(perHexFeats) || emptyFc;
+      }
     }
-    var outlineFc =
-      sandboxConfirmedHexUnionToOutlineLineFeature(perHexFeats) || emptyFc;
     if (map.getSource("boundary-sandbox-lasso-region-fill")) {
       try {
         map.getSource("boundary-sandbox-lasso-region-fill").setData(fillFc);
@@ -4998,6 +5370,22 @@
     }
   }
 
+  /** True when any hex key is selected by more than one boundary (shared paint). */
+  function sandboxBoundariesHaveSharedHexes() {
+    var seen = Object.create(null);
+    var bList = BOUNDARY_SANDBOX.boundaries || [];
+    for (var bi = 0; bi < bList.length; bi++) {
+      var bag = bList[bi] && bList[bi].selectedHexKeys;
+      if (!bag) continue;
+      for (var sk in bag) {
+        if (!bag[sk]) continue;
+        if (seen[sk]) return true;
+        seen[sk] = true;
+      }
+    }
+    return false;
+  }
+
   function applyBoundarySandboxSelectionFeatureStates() {
     if (!map || !map.getSource("boundary-sandbox-hex") || !map.getLayer("boundary-sandbox-hex-fill")) {
       return;
@@ -5196,6 +5584,9 @@
   }
 
   function isSandboxAttendanceTypeKeyIncludedForFilter(atype) {
+    if (atype === "choiceInFromOutside") {
+      return sandboxBoundaryChoiceInEnabled(sandboxActiveBoundary());
+    }
     var t = BOUNDARY_SANDBOX.attendanceTypeToggles;
     if (t && t[atype] === false) {
       return false;
@@ -5240,12 +5631,18 @@
    * when included (dimmed + `is-excluded` when unchecked, same as grade).
    * @param {Object<string, number>|undefined} byType unfiltered row counts in the full hex set
    * @param {number|undefined} selectionTotalAll students in hex selection (ignores checkboxes); footer total line
-   * @param {number|undefined} includedInDetails cohort passing grade + attendance toggles (lists / demographics)
+   * @param {number|undefined} includedInDetails cohort passing grade + attendance toggles
+   * @param {{ showChoiceIn?: boolean }|undefined} opts
    */
-  function formatSandboxAttendanceTypeBarHtml(byType, selectionTotalAll, includedInDetails) {
+  function formatSandboxAttendanceTypeBarHtml(byType, selectionTotalAll, includedInDetails, opts) {
     var defRows = [
       { key: "zonedTraditional", label: "Zoned Traditional School", mod: "zoned" },
-      { key: "otherTraditional", label: "Other Traditional School", mod: "other" },
+      {
+        key: "otherTraditional",
+        label: "Choice-Out to Other Traditional School",
+        mod: "other",
+        titleHint: "Attends a different traditional school than their zoned school"
+      },
       { key: "charter", label: "Charter School", mod: "charter" },
       { key: "choice", label: "Choice School", mod: "choice" },
       { key: "homeschool", label: "Homeschool", mod: "homeschool" },
@@ -5257,7 +5654,9 @@
         rows.push(defRows[d]);
       }
     }
-    if (!rows.length) {
+    var showChoiceIn = !!(opts && opts.showChoiceIn);
+    var choiceInCount = (byType && byType.choiceInFromOutside) || 0;
+    if (!rows.length && !showChoiceIn) {
       return "<p class=\"sandbox-stat-line\">—</p>";
     }
     var maxC = 0;
@@ -5269,6 +5668,7 @@
         maxC = c0;
       }
     }
+    if (showChoiceIn && choiceInCount > maxC) maxC = choiceInCount;
     var mapTotal =
       selectionTotalAll != null && !isNaN(Number(selectionTotalAll))
         ? Number(selectionTotalAll)
@@ -5277,15 +5677,14 @@
       includedInDetails != null && !isNaN(Number(includedInDetails))
         ? Number(includedInDetails)
         : rowSum;
-    if (maxC <= 0) {
+    if (maxC <= 0 && !showChoiceIn) {
       return "<p class=\"sandbox-stat-line\">—</p>";
     }
+    if (maxC <= 0) maxC = 1;
     var parts = [
       '<div class="sandbox-grade-chart sandbox-grade-chart--attendance" role="group" aria-label="Students by school type in this selection">',
     ];
-    for (var k = 0; k < rows.length; k++) {
-      var row = rows[k];
-      var c = (byType && byType[row.key]) || 0;
+    function pushAtypeRow(row, c, isChoiceIn) {
       var inc = isSandboxAttendanceTypeKeyIncludedForFilter(row.key);
       var wPct = Math.max(0, Math.min(100, Math.round((c / maxC) * 100)));
       var title = c + " student" + (c === 1 ? "" : "s") + " — " + row.label;
@@ -5295,8 +5694,13 @@
       if (!inc) {
         innerCls += " is-excluded";
       }
+      var labelTitle = row.titleHint
+        ? ' title="' + escapeHtml(row.titleHint) + '"'
+        : "";
       parts.push(
-        '<div class="sandbox-grade-row" data-sandbox-atype-row="' +
+        '<div class="sandbox-grade-row' +
+          (isChoiceIn ? " sandbox-grade-row--choice-in" : "") +
+          '" data-sandbox-atype-row="' +
           escapeHtml(String(row.key)) +
           '">' +
           '<div class="sandbox-grade-check" title="Count these students in the lists and charts below.">' +
@@ -5310,7 +5714,9 @@
           escapeHtml("Count these students below: " + row.label) +
           '" />' +
           "</div>" +
-          '<div class="sandbox-grade-label-col">' +
+          '<div class="sandbox-grade-label-col"' +
+          labelTitle +
+          ">" +
           escapeHtml(row.label) +
           "</div>" +
           '<div class="sandbox-grade-bar-area"><div class="sandbox-grade-bar-outer" title="' +
@@ -5325,11 +5731,38 @@
           "</div></div>"
       );
     }
-    if (mapTotal > 0) {
+    for (var k = 0; k < rows.length; k++) {
+      pushAtypeRow(rows[k], (byType && byType[rows[k].key]) || 0, false);
+    }
+    if (showChoiceIn) {
+      parts.push('<div class="sandbox-atype-separator" role="separator" aria-hidden="true"></div>');
+      pushAtypeRow(
+        {
+          key: "choiceInFromOutside",
+          label: "Choice-In from Outside Boundary Selection",
+          mod: "choice-in",
+          titleHint:
+            "Students who attend this boundary's base school but live outside the selection and are zoned elsewhere. When checked, they are not counted in any other boundary's enrollment."
+        },
+        choiceInCount,
+        true
+      );
+      parts.push(
+        '<p class="sandbox-choice-in-note">Choice-in counts are actual values for the 2025-26 school year. When checked, these students are excluded from every other boundary\u2019s enrollment counts \u2014 including their locally zoned home school\u2019s boundary.</p>'
+      );
+    }
+    if (mapTotal > 0 || showChoiceIn) {
       var totLine = "In selection (all types): " + mapTotal.toLocaleString() + " students";
-      if (includedTotal !== mapTotal) {
+      if (showChoiceIn) {
         totLine +=
-          " · included in details below: " + includedTotal.toLocaleString() + " students";
+          " \u00b7 choice-in outside selection: " + choiceInCount.toLocaleString();
+      }
+      if (
+        includedTotal !== mapTotal ||
+        (showChoiceIn && isSandboxAttendanceTypeKeyIncludedForFilter("choiceInFromOutside"))
+      ) {
+        totLine +=
+          " \u00b7 included in details below: " + includedTotal.toLocaleString() + " students";
       } else {
         totLine += " (all included in details below)";
       }
@@ -5376,48 +5809,60 @@
       byZoned: {},
       ethnicity: {},
       lunch: {},
+      choiceInClaimRegistry: null,
+      choiceInCount: 0,
+      homeChoiceInExcludedCount: 0,
+      homeChoiceInExcludedClaimants: null
     };
-    var hasTrad = STUDENT_HEX_INDEX && STUDENT_HEX_INDEX.detailsByMsid;
+    var activeB = sandboxActiveBoundary();
+    var activeId = activeB ? activeB.id : null;
+    var registry = buildSandboxChoiceInClaimRegistry();
+    out.choiceInClaimRegistry = registry;
+    if (activeId) {
+      out.homeChoiceInExcludedCount = registry.excludedCountByHomeBoundaryId[activeId] || 0;
+      out.homeChoiceInExcludedClaimants =
+        registry.excludedClaimantLabelsByHomeBoundaryId[activeId] || null;
+    }
+    var byHexDet =
+      STUDENT_HEX_INDEX && STUDENT_HEX_INDEX.detailsByHexKey
+        ? STUDENT_HEX_INDEX.detailsByHexKey
+        : null;
+    var hasTrad = !!byHexDet;
     var hmByHex = HOMESCHOOL_DETAILS_BY_HEX_KEY;
     var hasHm = !!(hmByHex && Object.keys(hmByHex).length);
     if (!hasTrad && !hasHm) {
       return out;
     }
     var keyBag = hexKeyBag || BOUNDARY_SANDBOX.selectedHexKeys;
-    var byDet = hasTrad ? STUDENT_HEX_INDEX.detailsByMsid : null;
     var fullByGrade = {};
     /** Attendance-type histogram with grade toggles applied (symmetric to grade chart using attendance toggles). */
     var fullByAT = Object.create(null);
     /** Grade histogram with attendance-type toggles applied (symmetric to attendance chart using grade toggles). */
     var gradeByAttendanceFilter = {};
     if (hasTrad) {
-      for (var attMs0 in byDet) {
-        if (!Object.prototype.hasOwnProperty.call(byDet, attMs0)) {
-          continue;
-        }
-        var hexMap0 = byDet[attMs0];
-        for (var hk0 in keyBag) {
-          if (!keyBag[hk0]) {
+      for (var hk0 in keyBag) {
+        if (!keyBag[hk0]) continue;
+        var arr0 = byHexDet[hk0];
+        if (!arr0 || !arr0.length) continue;
+        for (var i0 = 0; i0 < arr0.length; i0++) {
+          var d0 = arr0[i0];
+          if (!d0) continue;
+          if (
+            activeId &&
+            sandboxDetailClaimedByOtherBoundary(d0, hk0, i0, activeId, registry)
+          ) {
             continue;
           }
-          var arr0 = hexMap0[hk0];
-          if (!arr0 || !arr0.length) {
-            continue;
+          if (!sandboxResidenceDetailAllowedForBoundary(d0, activeB)) continue;
+          var g0 = sandboxGradeCanonicalForDetail(d0);
+          fullByGrade[g0] = (fullByGrade[g0] || 0) + 1;
+          if (detailIncludedBySandboxAttendanceTypeToggle(d0)) {
+            gradeByAttendanceFilter[g0] =
+              (gradeByAttendanceFilter[g0] || 0) + 1;
           }
-          for (var i0 = 0; i0 < arr0.length; i0++) {
-            var d0 = arr0[i0];
-            if (!d0) {
-              continue;
-            }
-            var g0 = sandboxGradeCanonicalForDetail(d0);
-            fullByGrade[g0] = (fullByGrade[g0] || 0) + 1;
-            if (detailIncludedBySandboxAttendanceTypeToggle(d0)) {
-              gradeByAttendanceFilter[g0] = (gradeByAttendanceFilter[g0] || 0) + 1;
-            }
-            if (detailIncludedBySandboxGradeToggle(d0)) {
-              var aCat = sandboxAttendanceCategoryForDetail(d0);
-              fullByAT[aCat] = (fullByAT[aCat] || 0) + 1;
-            }
+          if (detailIncludedBySandboxGradeToggle(d0)) {
+            var aCat = sandboxAttendanceCategoryForDetail(d0);
+            fullByAT[aCat] = (fullByAT[aCat] || 0) + 1;
           }
         }
       }
@@ -5436,6 +5881,9 @@
           if (!dh0) {
             continue;
           }
+          if (activeId && sandboxDetailClaimedByOtherBoundary(dh0, hkHs, ih0, activeId, registry)) {
+            continue;
+          }
           var gHs = sandboxGradeCanonicalForDetail(dh0);
           fullByGrade[gHs] = (fullByGrade[gHs] || 0) + 1;
           if (detailIncludedBySandboxAttendanceTypeToggle(dh0)) {
@@ -5445,6 +5893,19 @@
             var aCatHs = sandboxAttendanceCategoryForDetail(dh0);
             fullByAT[aCatHs] = (fullByAT[aCatHs] || 0) + 1;
           }
+        }
+      }
+    }
+    /* Present-day choice-IN row for active boundary (base school required). */
+    if (activeB && activeB.baseMsid != null && !isNaN(Number(activeB.baseMsid))) {
+      var cinN = registry.choiceInCountByBoundaryId[activeB.id] || 0;
+      out.choiceInCount = cinN;
+      fullByAT.choiceInFromOutside = cinN;
+      if (sandboxBoundaryChoiceInEnabled(activeB) && cinN > 0) {
+        var cinByG = registry.choiceInByGradeByBoundaryId[activeB.id] || Object.create(null);
+        for (var cgk in cinByG) {
+          if (!Object.prototype.hasOwnProperty.call(cinByG, cgk)) continue;
+          gradeByAttendanceFilter[cgk] = (gradeByAttendanceFilter[cgk] || 0) + (cinByG[cgk] || 0);
         }
       }
     }
@@ -5468,47 +5929,38 @@
     syncSandboxAttendanceTypeTogglesFromFull(fullByAT);
 
     if (hasTrad) {
-      for (var attMs in byDet) {
-        if (!Object.prototype.hasOwnProperty.call(byDet, attMs)) {
-          continue;
-        }
-        var hexMap = byDet[attMs];
-        for (var hk in keyBag) {
-          if (!keyBag[hk]) {
+      for (var hk in keyBag) {
+        if (!keyBag[hk]) continue;
+        var arr = byHexDet[hk];
+        if (!arr || !arr.length) continue;
+        for (var i = 0; i < arr.length; i++) {
+          var d = arr[i];
+          if (!d) continue;
+          if (
+            activeId &&
+            sandboxDetailClaimedByOtherBoundary(d, hk, i, activeId, registry)
+          ) {
             continue;
           }
-          var arr = hexMap[hk];
-          if (!arr || !arr.length) {
-            continue;
+          if (!sandboxResidenceDetailAllowedForBoundary(d, activeB)) continue;
+          if (!detailIncludedBySandboxGradeToggle(d)) continue;
+          if (!detailIncludedBySandboxAttendanceTypeToggle(d)) continue;
+          out.totalStudents += 1;
+          var am = parseInt(String(d.MSID).trim(), 10);
+          if (!isNaN(am)) {
+            var aKey = String(am);
+            out.byAttendance[aKey] = (out.byAttendance[aKey] || 0) + 1;
           }
-          for (var i = 0; i < arr.length; i++) {
-            var d = arr[i];
-            if (!d) {
-              continue;
-            }
-            if (!detailIncludedBySandboxGradeToggle(d)) {
-              continue;
-            }
-            if (!detailIncludedBySandboxAttendanceTypeToggle(d)) {
-              continue;
-            }
-            out.totalStudents += 1;
-            var am = parseInt(String(d.MSID).trim(), 10);
-            if (!isNaN(am)) {
-              var aKey = String(am);
-              out.byAttendance[aKey] = (out.byAttendance[aKey] || 0) + 1;
-            }
-            var zm = zonedMsidForDetailForAggregate(d);
-            var zKey = zm != null ? String(zm) : "__none__";
-            out.byZoned[zKey] = (out.byZoned[zKey] || 0) + 1;
-            var eth =
-              d.ethnicity != null && String(d.ethnicity).trim() !== ""
-                ? String(d.ethnicity).trim()
-                : "Unspecified";
-            out.ethnicity[eth] = (out.ethnicity[eth] || 0) + 1;
-            var lNorm = normalizeSandboxLunchStatForPie(d.lunch_stat);
-            out.lunch[lNorm] = (out.lunch[lNorm] || 0) + 1;
-          }
+          var zm = zonedMsidForDetailForAggregate(d);
+          var zKey = zm != null ? String(zm) : "__none__";
+          out.byZoned[zKey] = (out.byZoned[zKey] || 0) + 1;
+          var eth =
+            d.ethnicity != null && String(d.ethnicity).trim() !== ""
+              ? String(d.ethnicity).trim()
+              : "Unspecified";
+          out.ethnicity[eth] = (out.ethnicity[eth] || 0) + 1;
+          var lNorm = normalizeSandboxLunchStatForPie(d.lunch_stat);
+          out.lunch[lNorm] = (out.lunch[lNorm] || 0) + 1;
         }
       }
     }
@@ -5524,6 +5976,9 @@
         for (var jh = 0; jh < hmArr.length; jh++) {
           var dh = hmArr[jh];
           if (!dh) {
+            continue;
+          }
+          if (activeId && sandboxDetailClaimedByOtherBoundary(dh, hkHm, jh, activeId, registry)) {
             continue;
           }
           if (!detailIncludedBySandboxGradeToggle(dh)) {
@@ -5547,6 +6002,30 @@
           }
           out.byZoned[zKeyH] = (out.byZoned[zKeyH] || 0) + 1;
         }
+      }
+    }
+    if (activeB && sandboxBoundaryChoiceInEnabled(activeB) && out.choiceInCount > 0) {
+      out.totalStudents += out.choiceInCount;
+      var baseAttKey = String(Number(activeB.baseMsid));
+      out.byAttendance[baseAttKey] = (out.byAttendance[baseAttKey] || 0) + out.choiceInCount;
+      var zAdd =
+        registry.choiceInByZonedByBoundaryId &&
+        registry.choiceInByZonedByBoundaryId[activeB.id]
+          ? registry.choiceInByZonedByBoundaryId[activeB.id]
+          : Object.create(null);
+      for (var zK in zAdd) {
+        if (!Object.prototype.hasOwnProperty.call(zAdd, zK)) continue;
+        out.byZoned[zK] = (out.byZoned[zK] || 0) + zAdd[zK];
+      }
+      var ethAdd = registry.choiceInEthnicityByBoundaryId[activeB.id] || Object.create(null);
+      for (var ethK in ethAdd) {
+        if (!Object.prototype.hasOwnProperty.call(ethAdd, ethK)) continue;
+        out.ethnicity[ethK] = (out.ethnicity[ethK] || 0) + ethAdd[ethK];
+      }
+      var lunchAdd = registry.choiceInLunchByBoundaryId[activeB.id] || Object.create(null);
+      for (var lunchK in lunchAdd) {
+        if (!Object.prototype.hasOwnProperty.call(lunchAdd, lunchK)) continue;
+        out.lunch[lunchK] = (out.lunch[lunchK] || 0) + lunchAdd[lunchK];
       }
     }
     if (out.lunch && out.lunch.Unspecified) {
@@ -5903,11 +6382,49 @@
     var detailIncluded =
       agg.totalStudents != null && !isNaN(Number(agg.totalStudents)) ? Number(agg.totalStudents) : 0;
     if (atB) {
+      var showCi =
+        !!(sandboxActiveBoundary() &&
+          sandboxActiveBoundary().baseMsid != null &&
+          !isNaN(Number(sandboxActiveBoundary().baseMsid)));
       atB.innerHTML = formatSandboxAttendanceTypeBarHtml(
         agg.byAttendanceTypeFull || {},
         totalInHex,
-        detailIncluded
+        detailIncluded,
+        { showChoiceIn: showCi }
       );
+      if (agg.homeChoiceInExcludedCount > 0) {
+        var claimParts = [];
+        var byC = agg.homeChoiceInExcludedClaimants || {};
+        for (var cid in byC) {
+          if (!Object.prototype.hasOwnProperty.call(byC, cid)) continue;
+          claimParts.push(
+            byC[cid].count.toLocaleString() +
+              " at " +
+              (byC[cid].label || "another school")
+          );
+        }
+        var homeB = sandboxActiveBoundary();
+        var homeBaseName =
+          homeB && homeB.baseMsid != null && !isNaN(Number(homeB.baseMsid))
+            ? schoolShortNameForMsid(Number(homeB.baseMsid))
+            : "";
+        if (!homeBaseName) {
+          homeBaseName =
+            (homeB && homeB.name && String(homeB.name).trim()) || "this boundary";
+        }
+        var warn =
+          '<p class="sandbox-choice-in-undercount-warn" role="status">' +
+          "Enrollment for " +
+          escapeHtml(homeBaseName) +
+          " excludes " +
+          escapeHtml(String(agg.homeChoiceInExcludedCount.toLocaleString())) +
+          " student" +
+          (agg.homeChoiceInExcludedCount === 1 ? "" : "s") +
+          " who live here but are counted as choice-in students elsewhere in your scenario" +
+          (claimParts.length ? " (" + escapeHtml(claimParts.join(", ")) + ")" : "") +
+          ".</p>";
+        atB.insertAdjacentHTML("beforeend", warn);
+      }
     }
     if (gB) {
       gB.innerHTML = formatSandboxGradeBarChartHtml(agg.byGrade, totalInHex, detailIncluded);
@@ -5939,18 +6456,292 @@
     }
   }
 
+  function seedSandboxHexPluralityOwnerCacheFromPrecomputed() {
+    if (!SANDBOX_HEX_ASSIGNMENT_OWNERS_PRECOMPUTED) return;
+    var layers = ["es", "ms", "hs"];
+    for (var i = 0; i < layers.length; i++) {
+      var lk = layers[i];
+      var src = SANDBOX_HEX_ASSIGNMENT_OWNERS_PRECOMPUTED[lk];
+      if (!src) continue;
+      SANDBOX_HEX_PLURALITY_OWNER_CACHE[lk] = src;
+    }
+  }
+
+  function resetSandboxHexPluralityOwnerCache() {
+    SANDBOX_HEX_PLURALITY_OWNER_CACHE = Object.create(null);
+    SANDBOX_CENTROID_IN_BOUNDARY_CACHE = Object.create(null);
+    seedSandboxHexPluralityOwnerCacheFromPrecomputed();
+  }
+
   /**
-   * Pre-fills the ACTIVE boundary with every hex whose centroid lies inside
-   * the base school's assignment polygon — including hexes where no
-   * grade-eligible students happen to live (swiss-cheese-hole infill). Hexes
-   * with at least one zoned student or a homeschool resident are also added
-   * (covers cells whose centroid is just outside the polygon but whose
-   * residents are zoned by source data).
-   *
-   * Also restricts the active boundary's enabled grade range to the base
-   * school's grades_served so a K-6 ES + 7-8 MS can coexist on shared hexes.
-   * Hexes that would create a grade-overlap conflict with another boundary
-   * are skipped. Returns { added, skipped }.
+   * Seed plurality owner maps from offline JSON `{ v, es, ms, hs }` so base-school
+   * prefill does not rebuild ownership live.
+   */
+  function applySandboxHexAssignmentOwners(data) {
+    if (!data || (data.v !== 1 && data.v !== 2)) return false;
+    var layers = ["es", "ms", "hs"];
+    var packed = Object.create(null);
+    var applied = false;
+    for (var i = 0; i < layers.length; i++) {
+      var lk = layers[i];
+      var src = data[lk];
+      if (!src || typeof src !== "object") continue;
+      var map = Object.create(null);
+      for (var hk in src) {
+        if (!Object.prototype.hasOwnProperty.call(src, hk)) continue;
+        var ms = Number(src[hk]);
+        if (isNaN(ms) || ms <= 0) continue;
+        map[hk] = Math.round(ms);
+      }
+      packed[lk] = map;
+      applied = true;
+    }
+    if (!applied) return false;
+    SANDBOX_HEX_ASSIGNMENT_OWNERS_PRECOMPUTED = packed;
+    seedSandboxHexPluralityOwnerCacheFromPrecomputed();
+    return true;
+  }
+
+  /** "es" | "ms" | "hs" for the school’s assignment layer, or null. */
+  function sandboxAssignmentLayerKeyForMsid(msid) {
+    var src = findBoundarySourceForMsid(Number(msid));
+    if (src === "es-boundaries") return "es";
+    if (src === "ms-boundaries") return "ms";
+    if (src === "hs-boundaries") return "hs";
+    var m = masterRow(msid);
+    var lv = m ? String(m.school_level || "").toLowerCase().trim() : "";
+    if (lv === "elementary") return "es";
+    if (lv === "middle") return "ms";
+    if (lv === "high" || lv === "jr_sr_high") return "hs";
+    return null;
+  }
+
+  function sandboxAssignmentFcForLayerKey(layerKey) {
+    if (!GEO_CACHE) return null;
+    if (layerKey === "es") return GEO_CACHE.es;
+    if (layerKey === "ms") return GEO_CACHE.ms;
+    if (layerKey === "hs") return GEO_CACHE.hs;
+    return null;
+  }
+
+  function sandboxBboxesOverlap(a, b) {
+    if (!a || !b || a.length < 4 || b.length < 4) return true;
+    return a[0] <= b[2] && a[2] >= b[0] && a[1] <= b[3] && a[3] >= b[1];
+  }
+
+  /** Intersection area of two polygon features (Turf 7 FeatureCollection form). */
+  function sandboxTurfIntersectArea(aFeat, bFeat) {
+    if (
+      typeof turf === "undefined" ||
+      !turf ||
+      typeof turf.intersect !== "function" ||
+      typeof turf.area !== "function"
+    ) {
+      return 0;
+    }
+    try {
+      var inter =
+        typeof turf.featureCollection === "function"
+          ? turf.intersect(turf.featureCollection([aFeat, bFeat]))
+          : turf.intersect(aFeat, bFeat);
+      if (!inter || !inter.geometry) return 0;
+      return Number(turf.area(inter)) || 0;
+    } catch (eI) {
+      return 0;
+    }
+  }
+
+  function sandboxPointInSchoolFeat(pt, schFeat) {
+    try {
+      return !!turf.booleanPointInPolygon(pt, schFeat);
+    } catch (eP) {
+      return false;
+    }
+  }
+
+  /**
+   * Among candidate school records, pick the MSID with largest intersection
+   * area vs hexFeat (ties → lower MSID).
+   */
+  function sandboxPluralityMsidByArea(hexFeat, candidates) {
+    var bestMsid = null;
+    var bestArea = 0;
+    for (var i = 0; i < candidates.length; i++) {
+      var sch = candidates[i];
+      var a = sandboxTurfIntersectArea(hexFeat, sch.feat);
+      if (a <= 0) continue;
+      if (
+        a > bestArea ||
+        (a === bestArea && (bestMsid == null || sch.msid < bestMsid))
+      ) {
+        bestArea = a;
+        bestMsid = sch.msid;
+      }
+    }
+    return bestMsid;
+  }
+
+  /**
+   * For one ES/MS/HS layer: each hex → school MSID with largest area share.
+   * Fast path: unique school containing the hex centroid (point-in-polygon).
+   * Expensive area intersects only when the centroid is in 0 or 2+ schools
+   * (true border splits). Built once per layer then cached.
+   */
+  function buildSandboxHexPluralityOwnerMapForLayer(layerKey) {
+    var out = Object.create(null);
+    var fc = sandboxAssignmentFcForLayerKey(layerKey);
+    if (!fc || !fc.features || !fc.features.length) return out;
+    if (
+      typeof turf === "undefined" ||
+      !turf ||
+      typeof turf.feature !== "function" ||
+      typeof turf.point !== "function" ||
+      typeof turf.booleanPointInPolygon !== "function" ||
+      typeof turf.bbox !== "function"
+    ) {
+      return out;
+    }
+    var schools = [];
+    for (var fi = 0; fi < fc.features.length; fi++) {
+      var f = fc.features[fi];
+      if (!f || !f.geometry) continue;
+      var ms =
+        f.properties && f.properties.MSID != null
+          ? Number(f.properties.MSID)
+          : NaN;
+      if (isNaN(ms) || ms <= 0) continue;
+      var sf;
+      try {
+        sf = turf.feature(f.geometry);
+      } catch (eSf) {
+        continue;
+      }
+      var sbb = null;
+      try {
+        sbb = turf.bbox(sf);
+      } catch (eBb) {
+        sbb = null;
+      }
+      schools.push({ msid: Math.round(ms), feat: sf, bbox: sbb });
+    }
+    if (!schools.length) return out;
+
+    var seen = Object.create(null);
+    function considerHex(hexKey, geom) {
+      if (!hexKey || !geom || seen[hexKey]) return;
+      seen[hexKey] = true;
+      var ctr = polygonCentroid(geom);
+      if (!ctr || ctr.length < 2) return;
+      var pt;
+      try {
+        pt = turf.point(ctr);
+      } catch (ePt) {
+        return;
+      }
+      var containers = [];
+      for (var si = 0; si < schools.length; si++) {
+        var sch = schools[si];
+        if (sch.bbox) {
+          if (
+            ctr[0] < sch.bbox[0] ||
+            ctr[0] > sch.bbox[2] ||
+            ctr[1] < sch.bbox[1] ||
+            ctr[1] > sch.bbox[3]
+          ) {
+            continue;
+          }
+        }
+        if (sandboxPointInSchoolFeat(pt, sch.feat)) containers.push(sch);
+      }
+      if (containers.length === 1) {
+        out[hexKey] = containers[0].msid;
+        return;
+      }
+      /* Contested or gap: area plurality among a small candidate set only. */
+      var hexFeat;
+      try {
+        hexFeat = turf.feature(geom);
+      } catch (eHf) {
+        return;
+      }
+      var hbb = null;
+      try {
+        hbb = turf.bbox(hexFeat);
+      } catch (eHb) {
+        hbb = null;
+      }
+      var candidates = containers.length ? containers : [];
+      if (!candidates.length) {
+        for (var sj = 0; sj < schools.length; sj++) {
+          var schJ = schools[sj];
+          if (hbb && schJ.bbox && !sandboxBboxesOverlap(hbb, schJ.bbox)) continue;
+          candidates.push(schJ);
+        }
+      }
+      if (!candidates.length) return;
+      /* Cap worst-case intersects when centroid is outside every school. */
+      if (candidates.length > 8) {
+        candidates = candidates.slice(0, 8);
+      }
+      var winner = sandboxPluralityMsidByArea(hexFeat, candidates);
+      if (winner != null) out[hexKey] = winner;
+    }
+
+    if (STUDENT_HEX_INDEX && STUDENT_HEX_INDEX.geometryByHexKey) {
+      var gk = STUDENT_HEX_INDEX.geometryByHexKey;
+      for (var hk in gk) {
+        if (Object.prototype.hasOwnProperty.call(gk, hk)) considerHex(hk, gk[hk]);
+      }
+    }
+    if (HOMESCHOOL_HEX_GEOMETRY_FALLBACK) {
+      for (var hmk in HOMESCHOOL_HEX_GEOMETRY_FALLBACK) {
+        if (Object.prototype.hasOwnProperty.call(HOMESCHOOL_HEX_GEOMETRY_FALLBACK, hmk)) {
+          considerHex(hmk, HOMESCHOOL_HEX_GEOMETRY_FALLBACK[hmk]);
+        }
+      }
+    }
+    /* Intentionally skip EMPTY_HEX_GEOMETRY here — can be tens of thousands of
+       cells. Prefill infills those via centroid-in-polygon for the base school. */
+    return out;
+  }
+
+  function getSandboxHexPluralityOwnerMapForLayer(layerKey) {
+    if (!layerKey) return Object.create(null);
+    if (SANDBOX_HEX_PLURALITY_OWNER_CACHE[layerKey]) {
+      return SANDBOX_HEX_PLURALITY_OWNER_CACHE[layerKey];
+    }
+    var built = buildSandboxHexPluralityOwnerMapForLayer(layerKey);
+    SANDBOX_HEX_PLURALITY_OWNER_CACHE[layerKey] = built;
+    return built;
+  }
+
+  /**
+   * Owner maps used when prefilling a base school. Traditional schools use one
+   * ES/MS/HS layer; Jr/Sr highs use both MS and HS (they compete on both).
+   * @returns {Array<Object<string, number>>}
+   */
+  function sandboxOwnerMapsForBaseMsidPrefill(baseMsid) {
+    var m = masterRow(baseMsid);
+    var lv = m ? String(m.school_level || "").toLowerCase().trim() : "";
+    if (lv === "jr_sr_high") {
+      return [
+        getSandboxHexPluralityOwnerMapForLayer("ms"),
+        getSandboxHexPluralityOwnerMapForLayer("hs"),
+      ];
+    }
+    var layerKey = sandboxAssignmentLayerKeyForMsid(baseMsid);
+    if (!layerKey) return [];
+    return [getSandboxHexPluralityOwnerMapForLayer(layerKey)];
+  }
+
+  /**
+   * Pre-fills the ACTIVE boundary with every hex this base school owns under
+   * the hybrid assignment rule (>70% area share of hex∩district on its layer,
+   * else zoned plurality, else area plurality — see
+   * scripts/build_hex_assignment_owners.cjs). Jr/Sr bases take ownership from
+   * both MS and HS maps. Hexes that would create a grade-overlap conflict with
+   * another boundary are skipped. Also restricts grade toggles to grades_served
+   * (+ PK when the school has PK students). Returns { added, skipped }.
    */
   function prefillBoundarySandboxZonedHexesForBaseMsid(baseMsid) {
     var active = sandboxActiveBoundary();
@@ -5975,7 +6766,7 @@
     active.selectedHexKeys = Object.create(null);
     active.confirmedHexKeysSnapshot = Object.create(null);
     active.gradeToggles = sandboxMakeDefaultGradeToggles();
-    active.attendanceTypeToggles = sandboxMakeDefaultAttendanceTypeToggles();
+    active.attendanceTypeToggles = sandboxMakeDefaultAttendanceTypeToggles(active);
     active.schoolListExpanded = { attendance: false, zoned: false };
     active.lassoRegionFootprintFeature = null;
     var counts = { added: 0, skipped: 0 };
@@ -5994,8 +6785,9 @@
     }
     /* Restrict gradeToggles to the base school's grades_served (any K-12 grade
        not in the served list is set to false). This enables non-overlapping
-       boundary coexistence (e.g., K-6 ES + 7-8 MS on the same hex). PK and NG
-       are not in the chip list so they remain at the default (on). */
+       boundary coexistence (e.g., K-6 ES + 7-8 MS on the same hex). PK is
+       turned on when the school has observed PK enrollment (grades_served
+       never lists PK); No-grade stays off. */
     var servedGrades = parseGradesServedToCanonList(m.grades_served);
     if (servedGrades && servedGrades.length > 0) {
       var servedSet = Object.create(null);
@@ -6007,36 +6799,41 @@
         if (!servedSet[fg]) active.gradeToggles[fg] = false;
       }
     }
-    var zMap = collectZonedDetailsByHex(baseMsid, m, false);
-    for (var hk in zMap) {
-      if (!Object.prototype.hasOwnProperty.call(zMap, hk)) continue;
-      var arr = zMap[hk];
-      if (!arr || !arr.length) continue;
-      if (sandboxHexOverlapWouldConflict(hk, active)) {
-        counts.skipped++;
-        continue;
+    active.gradeToggles.PK = !!sandboxSchoolServesPk(baseMsid);
+    var ownerMaps = sandboxOwnerMapsForBaseMsidPrefill(baseMsid);
+    var wantMsid = Number(baseMsid);
+    /* Merged owner lookup: any layer map that assigns this base wins the hex;
+       also used to skip gap fill when another school owns the hex on a map. */
+    var ownedByOther = Object.create(null);
+    for (var omi = 0; omi < ownerMaps.length; omi++) {
+      var ownerMap = ownerMaps[omi] || Object.create(null);
+      for (var hkOwn in ownerMap) {
+        if (!Object.prototype.hasOwnProperty.call(ownerMap, hkOwn)) continue;
+        var om = Number(ownerMap[hkOwn]);
+        if (om === wantMsid) {
+          if (active.selectedHexKeys[hkOwn]) continue;
+          if (sandboxHexOverlapWouldConflict(hkOwn, active)) {
+            counts.skipped++;
+            continue;
+          }
+          active.selectedHexKeys[hkOwn] = true;
+          counts.added++;
+        } else if (!isNaN(om) && om > 0) {
+          ownedByOther[hkOwn] = true;
+        }
       }
-      active.selectedHexKeys[hk] = true;
-      counts.added++;
     }
-    var hmInPoly = homeschoolHexKeysWithCentroidInAssignmentBoundary(baseMsid);
-    for (var hmk in hmInPoly) {
-      if (!hmInPoly[hmk]) continue;
-      if (active.selectedHexKeys[hmk]) continue;
-      if (sandboxHexOverlapWouldConflict(hmk, active)) {
-        counts.skipped++;
-        continue;
-      }
-      active.selectedHexKeys[hmk] = true;
-      counts.added++;
-    }
-    /* Geographic superset: every hex (real or filler) whose centroid lies
-       inside the assignment polygon. This pulls in empty cells the student
-       index doesn't know about and naturally infills swiss-cheese holes. */
-    var inPoly = allHexKeysWithCentroidInAssignmentBoundary(baseMsid);
+    /* Gap / filler hexes: centroid inside this school’s assignment polygon and
+       not owned by another school. Empty: cells have no owner entry, so
+       centroid-in-polygon fills exclusive interiors. Footprint tint still uses
+       the assignment polygon (not a turf.union of these keys). */
+    var inPoly = allHexKeysWithCentroidInAssignmentBoundary(baseMsid, {
+      skipOwnedInMap: ownedByOther,
+    });
     for (var ipk in inPoly) {
       if (!inPoly[ipk]) continue;
       if (active.selectedHexKeys[ipk]) continue;
+      if (ownedByOther[ipk]) continue;
       if (sandboxHexOverlapWouldConflict(ipk, active)) {
         counts.skipped++;
         continue;
@@ -6303,9 +7100,12 @@
     if (!found) return;
     BOUNDARY_SANDBOX.activeBoundaryId = boundaryId;
     syncSandboxActiveBoundaryPaints();
-    /* Refresh hex feature-states so the new active boundary's color paints
-       on top of shared (overlapping) hexes. */
-    applyBoundarySandboxSelectionFeatureStates();
+    /* Re-apply feature-states only when boundaries share hexes (active-on-top).
+       Exclusive base-school fills can be thousands of empty: keys — rewriting
+       every setFeatureState on each toggle is what made switching feel broken. */
+    if (sandboxBoundariesHaveSharedHexes()) {
+      applyBoundarySandboxSelectionFeatureStates();
+    }
     /* Refresh the lasso/outline footprints to track the active boundary. */
     syncSandboxLassoFootprintFromSelectedHexGeometries();
     updateBoundarySandboxSelectionOutline();
@@ -6345,7 +7145,33 @@
     if (!boundaryId || boundaryId === BOUNDARY_SANDBOX.activeBoundaryId) return;
     sandboxSetActiveBoundary(boundaryId);
     sandboxApplyActiveRowHighlight();
-    updateSandboxSelectedHexCountUi();
+    /* Lightweight path: do not rebuild the whole boundaries panel (school
+       dropdowns) or the across-boundaries summary — that used to hitch when
+       selections were huge. Map footprint/outline/feature-state already ran
+       inside sandboxSetActiveBoundary. */
+    var n = countSandboxHexKeys(BOUNDARY_SANDBOX.selectedHexKeys);
+    if (n === 0) {
+      BOUNDARY_SANDBOX.selectionConfirmed = false;
+      BOUNDARY_SANDBOX.confirmedHexKeysSnapshot = Object.create(null);
+    } else {
+      BOUNDARY_SANDBOX.selectionConfirmed = true;
+      BOUNDARY_SANDBOX.confirmedHexKeysSnapshot = shallowCopyHexKeyBag(
+        BOUNDARY_SANDBOX.selectedHexKeys
+      );
+    }
+    var el = document.getElementById("sandbox-hex-count");
+    if (el) {
+      var activeForCount = sandboxActiveBoundary();
+      var activeName = activeForCount ? activeForCount.name : "active boundary";
+      el.textContent =
+        n === 0
+          ? "No hexes in " + activeName + " — use a tool and the map"
+          : n === 1
+            ? "1 hex in " + activeName
+            : n + " hexes in " + activeName;
+    }
+    syncSandboxConfirmEditButtonStates();
+    updateSandboxStatsPanelSummary();
   }
 
   function sandboxResetAll() {
@@ -6470,11 +7296,27 @@
         var ms = v ? Number(v) : null;
         var bRec = sandboxActiveBoundary();
         if (bRec) {
-          bRec.baseMsid = (ms != null && !isNaN(ms)) ? ms : null;
-          /* Auto-name the boundary after the chosen base school (shorthand). */
-          if (bRec.baseMsid != null) {
+          if (ms != null && !isNaN(ms)) {
+            var conflictBase = sandboxBaseMsidConflictsWithOthers(bRec, ms);
+            if (conflictBase) {
+              ev.target.value = bRec.baseMsid != null ? String(bRec.baseMsid) : "";
+              showSandboxOverlapNotice(
+                1,
+                "Cannot use the same base school as \"" +
+                  (conflictBase.name || "another boundary") +
+                  "\" while enabled grades overlap. Use non-overlapping grade ranges, or pick a different base school."
+              );
+              return;
+            }
+            bRec.baseMsid = ms;
+            bRec.choiceInFromOutside = true;
+            bRec.attendanceTypeToggles = sandboxMakeDefaultAttendanceTypeToggles(bRec);
             var baseShort = schoolShortNameForMsid(bRec.baseMsid);
             if (baseShort) bRec.name = baseShort;
+          } else {
+            bRec.baseMsid = null;
+            bRec.choiceInFromOutside = false;
+            bRec.attendanceTypeToggles = sandboxMakeDefaultAttendanceTypeToggles(bRec);
           }
         }
         var counts = prefillBoundarySandboxZonedHexesForBaseMsid(bRec ? bRec.baseMsid : null);
@@ -6518,7 +7360,8 @@
       /* Per-boundary grade chips. Always show the PK + K-12 + No-grade chip
          strip so the user can pre-configure grade ranges before drawing — this
          lets non-overlapping boundaries (K-6 ES + 7-8 MS) share hexes without
-         tripping the grade-conflict rule. PK and No-grade start unchecked. */
+         tripping the grade-conflict rule. With a base school, PK defaults on
+         when that school has PK students; No-grade stays off. */
       var gradesWrap = document.createElement("div");
       gradesWrap.className = "sandbox-boundary-row__grades-wrap";
       var chipsRow = document.createElement("div");
@@ -6545,6 +7388,18 @@
                 " is already used by another boundary on a shared hex. Untoggle it there first.");
               return;
             }
+            var sameBaseConflict = sandboxEnablingGradeWouldConflictWithSameBase(bRec, gradeCanon);
+            if (wantOn && sameBaseConflict) {
+              cb.checked = false;
+              showSandboxOverlapNotice(
+                1,
+                "Grade " + travelShedGradeDisplayLabel(gradeCanon) +
+                  " cannot be enabled — another boundary (\"" +
+                  (sameBaseConflict.name || "unnamed") +
+                  "\") already uses the same base school with this grade on. Overlapping grades cannot share one base school."
+              );
+              return;
+            }
             bRec.gradeToggles[gradeCanon] = wantOn;
             renderSandboxBoundariesPanel();
             updateSandboxSelectedHexCountUi();
@@ -6566,13 +7421,33 @@
       (function (sourceB) {
         copyBtn.addEventListener("click", function (ev3) {
           ev3.stopPropagation();
+          var blockedNames = [];
           for (var ck = 0; ck < BOUNDARY_SANDBOX.boundaries.length; ck++) {
             var other = BOUNDARY_SANDBOX.boundaries[ck];
             if (other.id === sourceB.id) continue;
-            other.gradeToggles = sandboxMakeDefaultGradeToggles();
+            var nextToggles = sandboxMakeDefaultGradeToggles();
             for (var gk in sourceB.gradeToggles) {
-              other.gradeToggles[gk] = sourceB.gradeToggles[gk];
+              nextToggles[gk] = sourceB.gradeToggles[gk];
             }
+            /* Skip copy when it would create same-base grade overlap. */
+            var probe = {
+              id: other.id,
+              baseMsid: other.baseMsid,
+              gradeToggles: nextToggles
+            };
+            if (sandboxBaseMsidConflictsWithOthers(probe, other.baseMsid)) {
+              blockedNames.push(other.name || "unnamed");
+              continue;
+            }
+            other.gradeToggles = nextToggles;
+          }
+          if (blockedNames.length) {
+            showSandboxOverlapNotice(
+              blockedNames.length,
+              "Could not copy grades to " +
+                blockedNames.join(", ") +
+                " — same base school with overlapping grade ranges."
+            );
           }
           renderSandboxBoundariesPanel();
           renderSandboxSummaryTable();
@@ -6588,19 +7463,18 @@
   function collectSandboxBoundaryGradeCodes(b) {
     var set = Object.create(null);
     if (!b) return [];
-    var hasTrad = STUDENT_HEX_INDEX && STUDENT_HEX_INDEX.detailsByMsid;
+    var byHexDet =
+      STUDENT_HEX_INDEX && STUDENT_HEX_INDEX.detailsByHexKey
+        ? STUDENT_HEX_INDEX.detailsByHexKey
+        : null;
     var hmByHex = HOMESCHOOL_DETAILS_BY_HEX_KEY;
-    if (hasTrad) {
-      var byDet = STUDENT_HEX_INDEX.detailsByMsid;
-      for (var att in byDet) {
-        var hexMap = byDet[att];
-        for (var hk in b.selectedHexKeys) {
-          if (!b.selectedHexKeys[hk]) continue;
-          var arr = hexMap[hk];
-          if (!arr) continue;
-          for (var di = 0; di < arr.length; di++) {
-            set[sandboxGradeCanonicalForDetail(arr[di])] = true;
-          }
+    if (byHexDet) {
+      for (var hk in b.selectedHexKeys) {
+        if (!b.selectedHexKeys[hk]) continue;
+        var arr = byHexDet[hk];
+        if (!arr) continue;
+        for (var di = 0; di < arr.length; di++) {
+          set[sandboxGradeCanonicalForDetail(arr[di])] = true;
         }
       }
     }
@@ -6628,27 +7502,33 @@
     return b.attendanceTypeToggles[cat] !== false;
   }
 
-  /** Aggregate stats for one boundary, honoring its grade AND attendance-type toggles. */
-  function aggregateSandboxBoundaryByGrade(b) {
+  /** Aggregate stats for one boundary, honoring its grade AND attendance-type toggles.
+   *  Applies choice-IN claims: residence skips students claimed by other boundaries;
+   *  when choice-IN is ON, adds outside-selection choice-IN by grade. */
+  function aggregateSandboxBoundaryByGrade(b, registryOpt) {
     var byGrade = Object.create(null);
     if (!b) return byGrade;
-    var hasTrad = STUDENT_HEX_INDEX && STUDENT_HEX_INDEX.detailsByMsid;
+    var registry = registryOpt || buildSandboxChoiceInClaimRegistry();
+    var byHexDet =
+      STUDENT_HEX_INDEX && STUDENT_HEX_INDEX.detailsByHexKey
+        ? STUDENT_HEX_INDEX.detailsByHexKey
+        : null;
     var hmByHex = HOMESCHOOL_DETAILS_BY_HEX_KEY;
-    if (hasTrad) {
-      var byDet = STUDENT_HEX_INDEX.detailsByMsid;
-      for (var att in byDet) {
-        var hexMap = byDet[att];
-        for (var hk in b.selectedHexKeys) {
-          if (!b.selectedHexKeys[hk]) continue;
-          var arr = hexMap[hk];
-          if (!arr) continue;
-          for (var di = 0; di < arr.length; di++) {
-            var d = arr[di];
-            var gc = sandboxGradeCanonicalForDetail(d);
-            if (b.gradeToggles[gc] === false) continue;
-            if (!sandboxBoundaryAttendanceTypeIncludes(b, d)) continue;
-            byGrade[gc] = (byGrade[gc] || 0) + 1;
+    if (byHexDet) {
+      for (var hk in b.selectedHexKeys) {
+        if (!b.selectedHexKeys[hk]) continue;
+        var arr = byHexDet[hk];
+        if (!arr) continue;
+        for (var di = 0; di < arr.length; di++) {
+          var d = arr[di];
+          if (sandboxDetailClaimedByOtherBoundary(d, hk, di, b.id, registry)) {
+            continue;
           }
+          if (!sandboxResidenceDetailAllowedForBoundary(d, b)) continue;
+          var gc = sandboxGradeCanonicalForDetail(d);
+          if (b.gradeToggles[gc] === false) continue;
+          if (!sandboxBoundaryAttendanceTypeIncludes(b, d)) continue;
+          byGrade[gc] = (byGrade[gc] || 0) + 1;
         }
       }
     }
@@ -6659,11 +7539,19 @@
         if (!hmArr) continue;
         for (var hi = 0; hi < hmArr.length; hi++) {
           var dh = hmArr[hi];
+          if (sandboxDetailClaimedByOtherBoundary(dh, hk2, hi, b.id, registry)) continue;
           var gc2 = sandboxGradeCanonicalForDetail(dh);
           if (b.gradeToggles[gc2] === false) continue;
           if (!sandboxBoundaryAttendanceTypeIncludes(b, dh)) continue;
           byGrade[gc2] = (byGrade[gc2] || 0) + 1;
         }
+      }
+    }
+    if (sandboxBoundaryChoiceInEnabled(b)) {
+      var cin = registry.choiceInByGradeByBoundaryId[b.id] || Object.create(null);
+      for (var cg in cin) {
+        if (!Object.prototype.hasOwnProperty.call(cin, cg)) continue;
+        byGrade[cg] = (byGrade[cg] || 0) + (cin[cg] || 0);
       }
     }
     return byGrade;
@@ -6676,16 +7564,19 @@
   function buildSandboxSummaryTableModel() {
     var bs = BOUNDARY_SANDBOX.boundaries || [];
     if (!bs.length) return null;
+    var registry = buildSandboxChoiceInClaimRegistry();
     var perBoundaryByGrade = [];
     var extraGradeSet = Object.create(null);
     for (var i = 0; i < bs.length; i++) {
-      var bg = aggregateSandboxBoundaryByGrade(bs[i]);
+      var bg = aggregateSandboxBoundaryByGrade(bs[i], registry);
       perBoundaryByGrade.push(bg);
       for (var k in bg) {
-        if (SANDBOX_FIXED_GRADE_CHIPS.indexOf(k) === -1) extraGradeSet[k] = true;
+        if (k !== "PK" && SANDBOX_FIXED_GRADE_CHIPS.indexOf(k) === -1) {
+          extraGradeSet[k] = true;
+        }
       }
     }
-    var gradeKeys = SANDBOX_FIXED_GRADE_CHIPS.slice();
+    var gradeKeys = ["PK"].concat(SANDBOX_FIXED_GRADE_CHIPS);
     var extras = Object.keys(extraGradeSet);
     extras.sort(function (a, c) {
       return travelShedGradeSortKey(a) - travelShedGradeSortKey(c);
@@ -6760,12 +7651,22 @@
     }
     rows.push({ label: "Utilization", values: utilVals, kind: "utilization" });
 
+    var showChoiceInNote = false;
+    for (var ciNote = 0; ciNote < bs.length; ciNote++) {
+      if (sandboxBoundaryChoiceInEnabled(bs[ciNote])) {
+        showChoiceInNote = true;
+        break;
+      }
+    }
+
     return {
       headers: headers,
       headerColors: headerColors,
       headerOutlines: headerOutlines,
       rows: rows,
-      boundaryCount: bs.length
+      boundaryCount: bs.length,
+      showChoiceInNote: showChoiceInNote,
+      choiceInRegistry: registry
     };
   }
 
@@ -6817,6 +7718,14 @@
       html.push("</tr>");
     }
     html.push("</tbody></table>");
+    if (model.showChoiceInNote) {
+      html.push(
+        '<div class="sandbox-summary-undercount-notes" role="status">' +
+          '<p class="sandbox-choice-in-undercount-warn">' +
+          "Students who live in one boundary but choice-in to another base school in your scenario are counted only at the school they choice into." +
+          "</p></div>"
+      );
+    }
     wrap.innerHTML = html.join("");
   }
 
@@ -14925,10 +15834,26 @@
    *
    * @returns {Object<string, true>}
    */
-  function allHexKeysWithCentroidInAssignmentBoundary(msid) {
+  /**
+   * @param {number} msid
+   * @param {{ skipOwnedInMap?: Object<string, number>, studentAndHomeschoolOnly?: boolean }=} opts
+   *   When `skipOwnedInMap` is set, hexes that already have an owner entry are
+   *   skipped (used by sandbox prefill after plurality / precomputed owners).
+   *   When `studentAndHomeschoolOnly`, empty/filler mesh is not scanned.
+   */
+  function allHexKeysWithCentroidInAssignmentBoundary(msid, opts) {
     var out = Object.create(null);
     if (msid == null || isNaN(Number(msid))) {
       return out;
+    }
+    var skipOwned = opts && opts.skipOwnedInMap ? opts.skipOwnedInMap : null;
+    var noEmpty = !!(opts && opts.studentAndHomeschoolOnly);
+    var cacheKey =
+      String(Math.round(Number(msid))) +
+      (skipOwned ? "|skipOwned" : "") +
+      (noEmpty ? "|noEmpty" : "");
+    if (SANDBOX_CENTROID_IN_BOUNDARY_CACHE[cacheKey]) {
+      return SANDBOX_CENTROID_IN_BOUNDARY_CACHE[cacheKey];
     }
     if (
       typeof turf === "undefined" ||
@@ -14949,11 +15874,28 @@
     } catch (ePoly) {
       return out;
     }
+    var polyBbox = null;
+    try {
+      if (typeof turf.bbox === "function") polyBbox = turf.bbox(polyFeat);
+    } catch (eBb) {
+      polyBbox = null;
+    }
     function consider(hexKey, geom) {
       if (out[hexKey]) return;
       if (!geom) return;
+      if (skipOwned && skipOwned[hexKey] != null) return;
       var ctr = polygonCentroid(geom);
       if (!ctr || ctr.length < 2) return;
+      if (polyBbox) {
+        if (
+          ctr[0] < polyBbox[0] ||
+          ctr[0] > polyBbox[2] ||
+          ctr[1] < polyBbox[1] ||
+          ctr[1] > polyBbox[3]
+        ) {
+          return;
+        }
+      }
       var inside = false;
       try {
         inside = turf.booleanPointInPolygon(turf.point(ctr), polyFeat);
@@ -14974,12 +15916,13 @@
         if (Object.prototype.hasOwnProperty.call(hf, hk)) consider(hk, hf[hk]);
       }
     }
-    if (EMPTY_HEX_GEOMETRY) {
+    if (!noEmpty && EMPTY_HEX_GEOMETRY) {
       var em = EMPTY_HEX_GEOMETRY;
       for (var ek in em) {
         if (Object.prototype.hasOwnProperty.call(em, ek)) consider(ek, em[ek]);
       }
     }
+    SANDBOX_CENTROID_IN_BOUNDARY_CACHE[cacheKey] = out;
     return out;
   }
 
@@ -15398,16 +16341,20 @@
     var countsByMsid = {};
     var geometryByHexKey = {};
     var detailsByMsid = {};
+    /** hexKey → student detail rows (same object refs as detailsByMsid). */
+    var detailsByHexKey = {};
     var charterDistrictHexCounts = {};
     if (!fc || !fc.features) {
       return {
         countsByMsid: countsByMsid,
         geometryByHexKey: geometryByHexKey,
         detailsByMsid: detailsByMsid,
+        detailsByHexKey: detailsByHexKey,
         charterDistrictHexCounts: charterDistrictHexCounts,
         neighborsByHexKey: Object.create(null),
       };
     }
+    var seq = 0;
     for (var i = 0; i < fc.features.length; i++) {
       var f = fc.features[i];
       var p = f.properties || {};
@@ -15434,13 +16381,16 @@
 
       if (!detailsByMsid[sk]) detailsByMsid[sk] = {};
       if (!detailsByMsid[sk][key]) detailsByMsid[sk][key] = [];
-      var det = studentHexDetailFromProps(p);
-      if (inc === 1) {
-        detailsByMsid[sk][key].push(det);
-      } else {
-        for (var jd = 0; jd < inc; jd++) {
-          detailsByMsid[sk][key].push(Object.assign({}, det));
+      if (!detailsByHexKey[key]) detailsByHexKey[key] = [];
+      var detBase = studentHexDetailFromProps(p);
+      for (var jd = 0; jd < inc; jd++) {
+        var detRow = jd === 0 && inc === 1 ? detBase : Object.assign({}, detBase);
+        if (!detRow._oid) {
+          seq += 1;
+          detRow._oid = "g:" + key + ":" + sk + ":" + seq;
         }
+        detailsByMsid[sk][key].push(detRow);
+        detailsByHexKey[key].push(detRow);
       }
     }
     var neighborsByHexKey = buildHexNeighborMap(geometryByHexKey);
@@ -15451,6 +16401,7 @@
       countsByMsid: countsByMsid,
       geometryByHexKey: geometryByHexKey,
       detailsByMsid: detailsByMsid,
+      detailsByHexKey: detailsByHexKey,
       charterDistrictHexCounts: charterDistrictHexCounts,
       neighborsByHexKey: neighborsByHexKey,
     };
@@ -18243,6 +19194,10 @@
               blockedGradesAll.push(gcx);
               continue;
             }
+            if (wantAll && sandboxEnablingGradeWouldConflictWithSameBase(activeRec, gcx)) {
+              blockedGradesAll.push(gcx);
+              continue;
+            }
             activeRec.gradeToggles[gcx] = wantAll;
           }
           if (blockedGradesAll.length) {
@@ -18252,7 +19207,7 @@
             showSandboxOverlapNotice(
               blockedGradesAll.length,
               "Could not enable grades " + names +
-                " — they are already used by another boundary on a shared hex."
+                " — conflict with another boundary on a shared hex, or the same base school with overlapping grades."
             );
           }
           updateSandboxStatsPanelSummary();
@@ -18278,6 +19233,18 @@
           );
           return;
         }
+        var sameBaseG = sandboxEnablingGradeWouldConflictWithSameBase(activeRec, gc);
+        if (wantOn && sameBaseG) {
+          t.checked = false;
+          showSandboxOverlapNotice(
+            1,
+            "Grade " + travelShedGradeDisplayLabel(gc) +
+              " cannot be enabled — another boundary (\"" +
+              (sameBaseG.name || "unnamed") +
+              "\") already uses the same base school with this grade on."
+          );
+          return;
+        }
         activeRec.gradeToggles[gc] = wantOn;
         updateSandboxStatsPanelSummary();
         renderSandboxBoundariesPanel();
@@ -18293,6 +19260,15 @@
         }
         var atp = t2.getAttribute("data-atype");
         if (atp == null) {
+          return;
+        }
+        var activeForAtype = sandboxActiveBoundary();
+        if (atp === "choiceInFromOutside") {
+          if (activeForAtype) {
+            activeForAtype.choiceInFromOutside = !!t2.checked;
+          }
+          updateSandboxStatsPanelSummary();
+          renderSandboxSummaryTable();
           return;
         }
         BOUNDARY_SANDBOX.attendanceTypeToggles =
@@ -18555,7 +19531,7 @@
         for (var ak in b.attendanceTypeToggles) {
           var av = b.attendanceTypeToggles[ak];
           if (av == null) continue;
-          var aDef = sandboxDefaultAttendanceTypeIncluded(ak);
+          var aDef = sandboxDefaultAttendanceTypeIncluded(ak, b);
           if (av === false && aDef) atOff[ak] = 0;
           else if (av === true && !aDef) atOff[ak] = 1;
         }
@@ -18566,6 +19542,9 @@
         h: hexKeys,
         g: Object.keys(off).length ? off : undefined,
         a: Object.keys(atOff).length ? atOff : undefined,
+        ci: b.baseMsid != null && !isNaN(b.baseMsid)
+          ? (b.choiceInFromOutside === false ? 0 : 1)
+          : undefined
       });
     }
     return p;
@@ -18611,8 +19590,14 @@
           dst.gradeToggles[gk2] = !(src.g[gk2] === 0 || src.g[gk2] === false);
         }
       }
+      if (dst.baseMsid != null && !isNaN(dst.baseMsid)) {
+        dst.choiceInFromOutside = !(src.ci === 0 || src.ci === false);
+      } else {
+        dst.choiceInFromOutside = false;
+      }
+      /* Start from base-aware defaults, then apply share deviations. */
+      dst.attendanceTypeToggles = sandboxMakeDefaultAttendanceTypeToggles(dst);
       if (src.a && typeof src.a === "object") {
-        dst.attendanceTypeToggles = dst.attendanceTypeToggles || Object.create(null);
         for (var ak2 in src.a) {
           dst.attendanceTypeToggles[ak2] = !(src.a[ak2] === 0 || src.a[ak2] === false);
         }
@@ -18776,7 +19761,7 @@
       var at = b.attendanceTypeToggles || Object.create(null);
       var atRows = [
         { key: "zonedTraditional", label: "Zoned Traditional School" },
-        { key: "otherTraditional", label: "Other Traditional School" },
+        { key: "otherTraditional", label: "Choice-Out to Other Traditional School" },
         { key: "charter", label: "Charter School" },
         { key: "choice", label: "Choice School" },
         { key: "homeschool", label: "Homeschool" }
@@ -18787,6 +19772,25 @@
       }
       lines.push(
         "  Attendance types included: " + (onA.length ? onA.join(", ") : "none")
+      );
+      if (b.baseMsid != null && !isNaN(b.baseMsid)) {
+        lines.push(
+          "  Choice-in from outside selection: " +
+            (sandboxBoundaryChoiceInEnabled(b) ? "ON (2025-26 actual)" : "OFF")
+        );
+      }
+    }
+    var anyChoiceIn = false;
+    for (var ni = 0; ni < bs.length; ni++) {
+      if (sandboxBoundaryChoiceInEnabled(bs[ni])) {
+        anyChoiceIn = true;
+        break;
+      }
+    }
+    if (anyChoiceIn) {
+      lines.push("");
+      lines.push(
+        "Note: Students who live in one boundary but choice-in to another base school in your scenario are counted only at the school they choice into."
       );
     }
     return { defaultTitle: defaultTitle, lines: lines };
@@ -19931,9 +20935,10 @@
     var bs = (BOUNDARY_SANDBOX && BOUNDARY_SANDBOX.boundaries) || [];
     var exportTs = new Date().toISOString();
     var features = [];
+    var registry = buildSandboxChoiceInClaimRegistry();
     var atRows = [
       { key: "zonedTraditional", label: "Zoned Traditional School" },
-      { key: "otherTraditional", label: "Other Traditional School" },
+      { key: "otherTraditional", label: "Choice-Out to Other Traditional School" },
       { key: "charter", label: "Charter School" },
       { key: "choice", label: "Choice School" },
       { key: "homeschool", label: "Homeschool" }
@@ -19996,7 +21001,10 @@
         if (at[atRows[ai].key] !== false) onAtt.push(atRows[ai].label);
       }
 
-      var byGrade = aggregateSandboxBoundaryByGrade(b);
+      var byGrade = aggregateSandboxBoundaryByGrade(b, registry);
+      var choiceInCount = sandboxBoundaryChoiceInEnabled(b)
+        ? (registry.choiceInCountByBoundaryId[b.id] || 0)
+        : 0;
       var enrTotal = 0;
       var byGradeParts = [];
       var gKeys = Object.keys(byGrade).sort(function (a, c) {
@@ -20021,6 +21029,13 @@
           base_school_msid: baseMsid,
           grades_included: onGrades.length ? onGrades.join(", ") : "none",
           attendance_types_included: onAtt.length ? onAtt.join(", ") : "none",
+          choice_in_from_outside:
+            baseMsid != null ? sandboxBoundaryChoiceInEnabled(b) : null,
+          choice_in_count: baseMsid != null ? choiceInCount : null,
+          choice_in_note:
+            baseMsid != null
+              ? "Choice-in counts are actual values for the 2025-26 school year. When checked, these students are excluded from every other boundary's enrollment counts — including their locally zoned home school's boundary."
+              : null,
           hex_count: hexCount,
           enrollment_snapshot: enrollmentSnapshot,
           export_timestamp: exportTs
