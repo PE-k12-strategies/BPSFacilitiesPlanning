@@ -35,6 +35,23 @@ body.dashboard-unlocked {
   overflow: hidden;
 }
 
+/* Welcome-page Mapbox warm: keep #dashboard full-viewport under the gate so
+   style/tiles/glyphs can load while the user reads the landing page. */
+body.map-warming:not(.dashboard-unlocked) #login-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+body.map-warming:not(.dashboard-unlocked) #dashboard {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;
@@ -565,6 +582,39 @@ body.dashboard-unlocked {
   max-width: 360px;
 }
 
+.welcome-enter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 12px;
+}
+
+.welcome-enter-actions .welcome-enter-btn {
+  margin-top: 0;
+}
+
+.welcome-survey-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0;
+  box-sizing: border-box;
+  text-decoration: none;
+  background: var(--brand-pe-orange);
+  color: #fff;
+}
+
+.welcome-survey-btn:hover,
+.welcome-survey-btn:focus-visible {
+  background: #e64a0c;
+  color: #fff;
+}
+
+.welcome-survey-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(255, 82, 13, 0.45);
+}
+
 /* "Back to Dashboard" button shown only when the welcome page is being
    re-opened as a tutorial review (the `.login-gate--review` modifier is
    toggled by the View Tutorial button). In review mode the enter block is
@@ -737,7 +787,7 @@ body.dashboard-unlocked {
 .dashboard-sidebar {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 8px;
   flex: 0 0 50%;
   width: 50%;
   min-width: 240px;
@@ -881,7 +931,7 @@ body.dashboard-unlocked {
   flex-direction: row;
   flex-wrap: nowrap;
   align-items: stretch;
-  gap: 0;
+  gap: 10px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -895,29 +945,12 @@ body.dashboard-unlocked {
 }
 
 .page-journey__connector {
-  flex: 0 0 1.35rem;
-  width: 1.35rem;
-  min-width: 1.35rem;
-  height: 3px;
-  margin: 0 3px;
-  align-self: center;
-  background: linear-gradient(
-    90deg,
-    #cbd5e1 0%,
-    #cbd5e1 calc(100% - 7px),
-    transparent calc(100% - 7px)
-  );
-  position: relative;
+  display: none;
 }
 
 .page-journey__connector::after {
-  content: "";
-  position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  border: 5px solid transparent;
-  border-left: 7px solid #94a3b8;
+  content: none;
+  display: none;
 }
 
 .page-journey__btn {
@@ -2018,6 +2051,20 @@ summary.panel-howto__title:focus-visible {
   margin-bottom: 0;
 }
 
+/* Orange pill callout for “select / pick a school” cues in How to use steps. */
+.howto-select-callout {
+  display: inline;
+  padding: 0.12em 0.55em;
+  border: 2px solid var(--brand-pe-orange);
+  border-radius: 999px;
+  color: #9a3412;
+  background: #fff6ed;
+  font-weight: 700;
+  white-space: nowrap;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
 .sandbox-controls {
   display: flex;
   flex-direction: column;
@@ -2936,7 +2983,7 @@ button.sandbox-school-expand:hover {
 }
 
 .dashboard-controls {
-  margin-bottom: 12px;
+  margin-bottom: 6px;
 }
 
 .school-select-wrap {
@@ -2964,9 +3011,8 @@ button.sandbox-school-expand:hover {
   display: flex;
 }
 
-/* Map-wide loading overlay. Visible by default; hidden via the .is-hidden
-   modifier (set from app.js once all data fetches resolve). Lives inside the
-   .dashboard-map-wrap so it inherits the same hide-while-login-gate behavior. */
+/* Map-area loading overlay (inside .dashboard-map-wrap). Blocks map interaction
+   while visible; sidebar stays usable. Hidden via .is-hidden after tier-1 geo. */
 .map-loading-overlay {
   position: absolute;
   inset: 0;
@@ -2978,13 +3024,14 @@ button.sandbox-school-expand:hover {
   background: rgba(248, 250, 252, 0.92);
   backdrop-filter: blur(2px);
   -webkit-backdrop-filter: blur(2px);
-  pointer-events: none;
+  pointer-events: auto;
   transition: opacity 0.25s ease, visibility 0.25s ease;
 }
 
 .map-loading-overlay.is-hidden {
   opacity: 0;
   visibility: hidden;
+  pointer-events: none;
 }
 
 .map-loading-overlay__card {
@@ -2996,7 +3043,6 @@ button.sandbox-school-expand:hover {
   border-left: 4px solid var(--brand-pe-orange);
   border-radius: 10px;
   box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
-  pointer-events: auto;
 }
 
 .map-loading-overlay__title {
@@ -3119,6 +3165,24 @@ button.sandbox-school-expand:hover {
 
 .searchable-select__trigger-text.is-placeholder {
   color: #9ca3af;
+}
+
+/* Orange ring while the combobox still shows “Select a school”. */
+.school-select-wrap.is-select-prompt .searchable-select__trigger {
+  border: 2px solid var(--brand-pe-orange);
+  border-radius: 999px;
+  background: #fff6ed;
+  box-shadow: 0 0 0 3px rgba(255, 82, 13, 0.18);
+  color: #9a3412;
+}
+
+.school-select-wrap.is-select-prompt .searchable-select__trigger-text.is-placeholder {
+  color: #9a3412;
+  font-weight: 600;
+}
+
+.school-select-wrap.is-select-prompt .searchable-select__caret {
+  color: var(--brand-pe-orange);
 }
 
 .searchable-select__caret {
@@ -3434,6 +3498,54 @@ button.sandbox-school-expand:hover {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: #374151;
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  user-select: none;
+}
+
+.sankey-details {
+  margin: 0;
+}
+
+.sankey-heading::-webkit-details-marker {
+  display: none;
+}
+
+.sankey-heading::before {
+  content: "";
+  width: 0.45em;
+  height: 0.45em;
+  border-right: 2px solid #64748b;
+  border-bottom: 2px solid #64748b;
+  transform: rotate(-45deg);
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.sankey-details[open] > .sankey-heading::before {
+  transform: rotate(45deg);
+}
+
+.sankey-details:not([open]) > .sankey-heading {
+  margin-bottom: 0;
+}
+
+.sankey-heading:focus-visible {
+  outline: 2px solid var(--brand-pe-orange);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+.sankey-heading__label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.sankey-panel:has(.sankey-details:not([open])) {
+  min-height: 0;
 }
 
 .sankey-row {
@@ -3756,28 +3868,31 @@ button.sandbox-school-expand:hover {
 }
 
 .demographics-chart-body {
-  min-height: 140px;
+  min-height: 0;
 }
 
 .demographics-pie-inner {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: 8px;
+  justify-content: flex-start;
+  gap: 10px;
 }
 
 .demographics-pie-inner svg {
   display: block;
-  width: 180px;
-  height: 180px;
-  max-width: 100%;
+  width: 144px;
+  height: 144px;
+  flex-shrink: 0;
 }
 
 .demographics-legend {
   margin: 0;
   padding: 0;
   list-style: none;
-  width: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
   font-size: 0.68rem;
   line-height: 1.35;
   color: #374151;
@@ -3812,12 +3927,261 @@ button.sandbox-school-expand:hover {
 
 .ese-feeder-section {
   margin-top: 10px;
+  margin-bottom: 0;
   flex-shrink: 0;
   padding: 10px 12px 12px;
   background: #fff;
   border: 1px solid #e5e7eb;
   border-radius: 4px;
   width: 100%;
+}
+
+/* Existing Conditions: 8px as the standard stack/gutter spacing. */
+#page-existing.sidebar-page-panel {
+  gap: 8px;
+}
+
+#page-existing > .dashboard-controls {
+  margin-bottom: 0;
+}
+
+#page-existing > .school-details {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+#page-existing .panel-howto-row {
+  gap: 8px;
+}
+
+#page-existing .demographics-row {
+  gap: 8px;
+}
+
+#page-existing .sankey-row {
+  gap: 8px;
+}
+
+#page-existing .sankey-row--split {
+  gap: 8px;
+  column-gap: 8px;
+}
+
+#page-existing .ese-feeder-section {
+  margin-top: 0;
+}
+
+/* Trial: same 3-col grid + gap as primary KPIs so the gutter between
+   enrollment and capture aligns with Factored Capacity | Utilization.
+   Remove with the matching HTML wrapper comment if reverting. */
+#page-existing .enrollment-capture-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  align-items: stretch;
+  flex-shrink: 0;
+  width: 100%;
+  min-width: 0;
+}
+
+#page-existing .enrollment-capture-row > .enrollment-chart-panel {
+  grid-column: 1 / span 2;
+  min-width: 0;
+}
+
+#page-existing .enrollment-capture-row > .kpi-capture-panel {
+  grid-column: 3;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+#page-existing .enrollment-capture-row .kpi-capture-panel__heading-row {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+#page-existing .enrollment-capture-row .kpi-capture-homeschool-toggle {
+  font-size: 0.7rem;
+}
+
+/* Trial: 2×2 capture KPI grid. Label area always reserves 2 lines so every
+   card matches the height of “Other Traditional School” (wrapped title). */
+#page-existing .enrollment-capture-row .kpi-grid--capture,
+#page-existing .enrollment-capture-row .kpi-grid--capture.kpi-grid--capture--five {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  flex: 0 0 auto;
+  align-items: stretch;
+}
+
+#page-existing .enrollment-capture-row .kpi-grid--capture > .kpi-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+/* display:flex above would otherwise override [hidden] and show the card. */
+#page-existing .enrollment-capture-row .kpi-grid--capture > .kpi-card[hidden] {
+  display: none !important;
+}
+
+#page-existing .enrollment-capture-row .kpi-capture-card-label {
+  font-size: 0.62rem;
+  margin-bottom: 4px;
+  line-height: 1.25;
+  flex: 0 0 auto;
+  /* Always two lines tall — matches wrapped “Other Traditional School”. */
+  min-height: calc(1.25em * 2);
+}
+
+#page-existing .enrollment-capture-row .kpi-capture-panel .kpi-value {
+  font-size: 1.05rem;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  min-height: 0;
+}
+
+@media (max-width: 720px) {
+  #page-existing .enrollment-capture-row {
+    grid-template-columns: 1fr;
+  }
+
+  #page-existing .enrollment-capture-row > .enrollment-chart-panel,
+  #page-existing .enrollment-capture-row > .kpi-capture-panel {
+    grid-column: 1;
+  }
+
+  #page-existing .enrollment-capture-row .kpi-grid--capture,
+  #page-existing .enrollment-capture-row .kpi-grid--capture.kpi-grid--capture--five {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+#page-existing .enrollment-chart-panel,
+#page-existing .sankey-panel {
+  padding: 8px 10px 10px;
+}
+
+#page-existing .sankey-panel--split {
+  padding: 6px 8px 8px;
+}
+
+#page-existing .kpi-capture-panel {
+  padding: 8px 10px;
+}
+
+#page-existing .kpi-card {
+  padding: 8px 10px;
+}
+
+#page-existing .kpi-capture-panel .kpi-card {
+  padding: 10px 8px 8px;
+}
+
+#page-existing .demographics-chart-card,
+#page-existing .ese-feeder-section {
+  padding: 8px 10px 10px;
+}
+
+#page-existing .enrollment-chart-heading {
+  margin: 0 0 6px;
+}
+
+#page-existing .kpi-label {
+  margin: 0 0 4px;
+}
+
+#page-existing .kpi-capture-card-label {
+  margin: 0 0 6px;
+}
+
+#page-existing .sankey-heading {
+  margin: 0 0 8px;
+}
+
+#page-existing .sankey-details:not([open]) > .sankey-heading {
+  margin-bottom: 0;
+}
+
+#page-existing .sankey-panel--split .sankey-heading {
+  margin-bottom: 6px;
+}
+
+#page-existing .sankey-panel--split .sankey-details:not([open]) > .sankey-heading {
+  margin-bottom: 0;
+}
+
+#page-existing .sankey-subheading {
+  margin: 0 0 6px;
+}
+
+#page-existing .demographics-chart-title {
+  margin: 0 0 6px;
+}
+
+#page-existing .ese-feeder-heading {
+  margin: 0 0 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #374151;
+}
+
+#page-existing .ese-feeder-details:not([open]) > .ese-feeder-heading {
+  margin-bottom: 0;
+}
+
+/* C: shorter enrollment chart */
+#page-existing .enrollment-chart {
+  min-height: 180px;
+}
+
+#page-existing .enrollment-chart svg {
+  max-height: 240px;
+}
+
+#page-existing .enrollment-chart-legend {
+  margin-top: 8px;
+}
+
+/* F: tighter KPI / capture spacing */
+#page-existing .kpi-section {
+  gap: 8px;
+}
+
+#page-existing .kpi-grid {
+  gap: 8px;
+}
+
+#page-existing .kpi-capture-panel__heading-row {
+  margin-bottom: 8px;
+  gap: 8px;
+}
+
+#page-existing .kpi-capture-panel .kpi-card {
+  padding: 8px 6px 6px;
+}
+
+/* Flex scrollports often clip/collapse padding-bottom; a real flex child
+   keeps ~8px between the last card and the bottom of the sidebar. */
+#page-existing.sidebar-page-panel::after {
+  content: "";
+  display: block;
+  flex: 0 0 8px;
+  height: 8px;
+  width: 100%;
+  pointer-events: none;
+}
+
+.ese-feeder-details {
+  margin: 0;
 }
 
 .ese-feeder-heading {
@@ -3827,6 +4191,46 @@ button.sandbox-school-expand:hover {
   letter-spacing: 0.03em;
   text-transform: uppercase;
   color: #4b5563;
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  user-select: none;
+}
+
+.ese-feeder-heading::-webkit-details-marker {
+  display: none;
+}
+
+.ese-feeder-heading::before {
+  content: "";
+  width: 0.45em;
+  height: 0.45em;
+  border-right: 2px solid #64748b;
+  border-bottom: 2px solid #64748b;
+  transform: rotate(-45deg);
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.ese-feeder-details[open] > .ese-feeder-heading::before {
+  transform: rotate(45deg);
+}
+
+.ese-feeder-details:not([open]) > .ese-feeder-heading {
+  margin-bottom: 0;
+}
+
+.ese-feeder-heading:focus-visible {
+  outline: 2px solid var(--brand-pe-orange);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+.ese-feeder-heading__label {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .ese-feeder-table-wrap {
@@ -4248,6 +4652,22 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.layer-loading-toast {
+  margin: 0;
+  padding: 8px 10px;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  color: #334155;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-left: 3px solid var(--brand-pe-orange);
+  border-radius: 6px;
+}
+
+.layer-loading-toast[hidden] {
+  display: none !important;
 }
 
 #travel-shed-max-miles-row[hidden] {

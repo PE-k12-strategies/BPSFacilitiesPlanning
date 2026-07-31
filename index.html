@@ -20,7 +20,7 @@
       href="https://api.mapbox.com/mapbox-gl-js/v3.8.0/mapbox-gl.css"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=20260715-1" />
+    <link rel="stylesheet" href="styles.css?v=20260731-1" />
     <script src="config.local.js" onerror="void 0"></script>
     <script>
       /* Google Analytics 4 — only runs when config.local.js sets GA4_MEASUREMENT_ID (G-…). */
@@ -46,61 +46,60 @@
       })();
     </script>
     <script>
-      /* Pre-fetch dashboard data files as early as possible — as soon as the
-         welcome / tutorial page loads — so heavy GeoJSON and school stats are
-         warm before the user clicks Enter Dashboard. Promises are stashed on
-         window.__prefetchPromises so app.js reuses them via smartFetch(). */
+      /* Prefetch core dashboard data on the welcome page (download only here;
+         app.js parses via smartFetch / workers so Enter Dashboard and Take the
+         Survey stay clickable). Student hex + travel isochrones are NOT
+         prefetched — they load on first use of Scenario Planning / Travel sheds. */
       (function () {
         if (typeof fetch !== "function") return;
         window.__prefetchPromises = window.__prefetchPromises || Object.create(null);
 
-        function prefetch(path, parseAs) {
+        /** Start a download; resolve to a Response (or null on failure). Do not parse. */
+        function prefetch(path) {
           if (window.__prefetchPromises[path]) {
             return window.__prefetchPromises[path];
           }
-          window.__prefetchPromises[path] = fetch(path)
-            .then(function (r) {
-              if (!r || !r.ok) {
-                return parseAs === "text" ? "" : null;
-              }
-              return parseAs === "text" ? r.text() : r.json();
-            })
-            .catch(function () {
-              return parseAs === "text" ? "" : null;
-            });
+          window.__prefetchPromises[path] = fetch(path).catch(function () {
+            return null;
+          });
           return window.__prefetchPromises[path];
         }
 
         var files = [
-          ["geo/SchoolLocations.json", "json"],
-          ["geo/ESBoundaries.json", "json"],
-          ["geo/MSBoundaries.json", "json"],
-          ["geo/HSBoundaries.json", "json"],
-          ["data/processed/sankey_es_ms.json", "json"],
-          ["geo/StudentHexagons.bundle.json", "json"],
-          ["geo/SchoolParcels.geojson", "json"],
-          ["geo/SchoolBoardDistricts.geojson", "json"],
-          ["geo/MunicipalBoundaries.geojson", "json"],
-          ["geo/CharterSchoolLocations.geojson", "json"],
-          ["geo/PrivateSchools.json", "json"],
-          ["geo/HomeschoolStudentHexagons.geojson", "json"],
-          ["data/processed/meadowlane_capture_override.json", "json"],
-          ["data/processed/ese_feeder_matrix.json", "json"],
-          ["geo/SchoolIsochrones.geojson", "json"],
-          ["data/processed/bps_employee_count_by_msid.json", "json"],
-          ["data/processed/hex_assignment_owners.json", "json"],
-          ["data/processed/school_master_index.json", "json"],
-          ["data/school_master.csv", "text"]
+          "geo/SchoolLocations.json",
+          "geo/ESBoundaries.json",
+          "geo/MSBoundaries.json",
+          "geo/HSBoundaries.json",
+          "data/processed/sankey_es_ms.json",
+          "geo/SchoolParcels.geojson",
+          "geo/SchoolBoardDistricts.geojson",
+          "geo/MunicipalBoundaries.geojson",
+          "geo/CharterSchoolLocations.geojson",
+          "geo/PrivateSchools.json",
+          "geo/HomeschoolStudentHexagons.geojson",
+          "data/processed/meadowlane_capture_override.json",
+          "data/processed/ese_feeder_matrix.json",
+          "data/processed/bps_employee_count_by_msid.json",
+          "data/processed/hex_assignment_owners.json",
+          "data/school_master.csv"
         ];
         for (var fi = 0; fi < files.length; fi++) {
-          prefetch(files[fi][0], files[fi][1]);
+          prefetch(files[fi]);
         }
 
-        /* Enrollment master stats: once the shard index resolves, prefetch every shard. */
-        prefetch("data/processed/school_master_index.json", "json").then(function (idx) {
+        /* Index is small: parse once on welcome to discover shard URLs. */
+        var indexPath = "data/processed/school_master_index.json";
+        window.__prefetchPromises[indexPath] = fetch(indexPath)
+          .then(function (r) {
+            return r && r.ok ? r.json() : null;
+          })
+          .catch(function () {
+            return null;
+          });
+        window.__prefetchPromises[indexPath].then(function (idx) {
           if (!idx || !idx.shards || !idx.shards.length) return;
           for (var si = 0; si < idx.shards.length; si++) {
-            prefetch(idx.shards[si], "json");
+            prefetch(idx.shards[si]);
           }
         });
       })();
@@ -177,10 +176,27 @@
             gate.hidden = true;
           }
           dash.hidden = false;
+          document.body.classList.remove("map-warming");
           document.body.classList.add("dashboard-unlocked");
           loadApp();
+          if (typeof window.__onDashboardEntered === "function") {
+            try {
+              window.__onDashboardEntered();
+            } catch (eEnter) {
+              /* ignore */
+            }
+          }
         }
         window.__enterDashboard = enterDashboard;
+
+        /** Size the map under the welcome gate so Mapbox can fetch style/tiles early. */
+        function warmMapUnderWelcomeGate() {
+          var dash = document.getElementById("dashboard");
+          if (!dash) return;
+          dash.hidden = false;
+          document.body.classList.add("map-warming");
+          loadApp();
+        }
 
         function requestDashboardView(page, subtab) {
           if (!page) return;
@@ -236,12 +252,22 @@
               var dash = document.getElementById("dashboard");
               if (gate) gate.hidden = true;
               if (dash) dash.hidden = false;
+              document.body.classList.remove("map-warming");
               document.body.classList.add("dashboard-unlocked");
               loadApp();
+              if (typeof window.__onDashboardEntered === "function") {
+                try {
+                  window.__onDashboardEntered();
+                } catch (eEnterRest) {
+                  /* ignore */
+                }
+              }
+              return;
             }
           } catch (e) {
             /* ignore */
           }
+          warmMapUnderWelcomeGate();
         }
         if (document.readyState === "loading") {
           document.addEventListener("DOMContentLoaded", initSessionRestore);
@@ -363,13 +389,23 @@
                 tablet. This dashboard is not well-suited to smartphones or other
                 small mobile devices.
               </p>
-              <button
-                type="button"
-                id="enter-dashboard-btn"
-                class="login-gate__submit welcome-enter-btn"
-              >
-                Enter Dashboard
-              </button>
+              <div class="welcome-enter-actions">
+                <button
+                  type="button"
+                  id="enter-dashboard-btn"
+                  class="login-gate__submit welcome-enter-btn"
+                >
+                  Enter Dashboard
+                </button>
+                <a
+                  class="login-gate__submit welcome-survey-btn"
+                  href="https://docs.google.com/forms/d/e/1FAIpQLSczqbsV7tOwe8UVmXN50WWDmG-xpwE8g59dSCoKxprns9IUyA/viewform"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Take the Survey
+                </a>
+              </div>
             </div>
             <button
               type="button"
@@ -465,7 +501,7 @@
             aria-haspopup="dialog"
             aria-controls="welcome-changelog-overlay"
           >
-            Change Log - Last Updated July 15, 2026
+            Change Log - Last Updated July 31, 2026
           </button>
         </p>
       </div>
@@ -494,6 +530,34 @@
           </button>
         </header>
         <div class="welcome-changelog-card__body">
+          <section class="welcome-changelog-entry">
+            <h3 class="welcome-changelog-entry__date">July 31, 2026</h3>
+            <ul class="welcome-changelog-entry__list">
+              <li>
+                Updated map loading protocol to improve loading speeds. Travel
+                sheds load when that map layer is turned on, and student hex data
+                loads when opening Build your own Scenario, with clearer loading
+                feedback during those steps.
+              </li>
+              <li>
+                Renamed the Scenario Planning journey tab to “Build your own
+                Scenario.”
+              </li>
+              <li>
+                To reduce vertical scrolling on Existing Conditions, Feeder Flows
+                (Sankey) and Exceptional Student Education Program Feeder Flows
+                are now collapsible. Demographic pie legends are placed beside
+                the charts, and enrollment over time is moved beside attendance
+                boundary capture rates.
+              </li>
+            </ul>
+          </section>
+          <section class="welcome-changelog-entry">
+            <h3 class="welcome-changelog-entry__date">July 27, 2026</h3>
+            <ul class="welcome-changelog-entry__list">
+              <li>Added "Take the Survey" button to landing page.</li>
+            </ul>
+          </section>
           <section class="welcome-changelog-entry">
             <h3 class="welcome-changelog-entry__date">July 15, 2026</h3>
             <ul class="welcome-changelog-entry__list">
@@ -571,7 +635,7 @@
             >
               View Tutorial
             </button>
-            <nav class="page-journey" aria-label="Dashboard journey">
+            <nav class="page-journey" aria-label="Dashboard views">
               <ol class="page-journey__track" role="tablist">
                 <li class="page-journey__item">
                   <button
@@ -589,7 +653,6 @@
                     <span class="page-journey__label">Existing Conditions</span>
                   </button>
                 </li>
-                <li class="page-journey__connector" aria-hidden="true"></li>
                 <li class="page-journey__item">
                   <button
                     type="button"
@@ -600,13 +663,12 @@
                     data-step="2"
                     aria-selected="false"
                     aria-controls="page-scenario"
-                    title="Scenario Planning"
+                    title="Build your own Scenario"
                   >
                     <span class="page-journey__num" aria-hidden="true">2</span>
-                    <span class="page-journey__label">Scenario Planning</span>
+                    <span class="page-journey__label">Build your own Scenario</span>
                   </button>
                 </li>
-                <li class="page-journey__connector" aria-hidden="true"></li>
                 <li class="page-journey__item">
                   <button
                     type="button"
@@ -647,7 +709,8 @@
                   demographics, and where its students come from.
                 </li>
                 <li>
-                  Pick a school from the dropdown below to load its profile and center the
+                  <span class="howto-select-callout">Pick a school</span>
+                  from the dropdown below to load its profile and center the
                   school location on the map.
                 </li>
                 <li>
@@ -725,6 +788,26 @@
               <p class="kpi-value kpi-value--placeholder" id="kpi-utilization">—</p>
             </article>
           </div>
+        </section>
+
+        <!-- Trial layout: enrollment spans 2 of 3 KPI columns; capture aligns with
+             Utilization. Revert by moving .kpi-capture-panel back into .kpi-section
+             and removing the wrapper. -->
+        <div class="enrollment-capture-row">
+        <section class="enrollment-chart-panel" aria-label="Enrollment history and projections">
+          <h2 class="enrollment-chart-heading">
+            <span id="main-enrollment-chart-heading">Enrollment over time</span><button
+              type="button"
+              class="info-tip"
+              title="How many students have attended this school each year, with projections for upcoming years."
+              aria-label="More info: Enrollment over time"
+            >?</button>
+          </h2>
+          <div id="enrollment-chart" class="enrollment-chart" aria-live="polite">
+            <p class="enrollment-chart-empty">Select a school to view enrollment trends.</p>
+          </div>
+        </section>
+
           <div class="kpi-capture-panel">
             <div class="kpi-capture-panel__heading-row">
               <h2 class="enrollment-chart-heading kpi-capture-panel__title">
@@ -807,45 +890,37 @@
               </article>
             </div>
           </div>
-        </section>
+        </div>
 
-        <section class="enrollment-chart-panel" aria-label="Enrollment history and projections">
-          <h2 class="enrollment-chart-heading">
-            <span id="main-enrollment-chart-heading">Enrollment over time</span><button
-              type="button"
-              class="info-tip"
-              title="How many students have attended this school each year, with projections for upcoming years."
-              aria-label="More info: Enrollment over time"
-            >?</button>
-          </h2>
-          <div id="enrollment-chart" class="enrollment-chart" aria-live="polite">
-            <p class="enrollment-chart-empty">Select a school to view enrollment trends.</p>
-          </div>
-        </section>
-
-        <section class="sankey-panel" id="sankey-panel" aria-label="Feeder school transitions">
-          <h2 class="sankey-heading">
-            Feeder Flows by Assignment Area Boundary, 2024-25 to 2025-26<button
-              type="button"
-              class="info-tip"
-              title="Where students from this school are zoned to attend next, and where new students at this school were previously zoned to attend, as they advance from elementary to middle and from middle to high. The arrows show how many students are expected to transition between schools based on attendance zoning."
-              aria-label="More info: Feeder Flows"
-            >?</button>
-          </h2>
-          <div id="sankey-row" class="sankey-row" aria-live="polite">
-            <div class="sankey-col sankey-col--es-ms">
-              <h3 class="sankey-subheading">Grades 6→7 (elementary → middle)</h3>
-              <div id="sankey-es-ms" class="sankey-chart">
-                <p class="sankey-empty">Select a school to view feeder flows.</p>
+        <section class="sankey-panel" id="sankey-panel" aria-labelledby="sankey-heading">
+          <details class="sankey-details" id="sankey-details" open>
+            <summary class="sankey-heading" id="sankey-heading">
+              <span class="sankey-heading__label"
+                >Feeder Flows by Assignment Area Boundary, 2024-25 to 2025-26</span
+              ><button
+                type="button"
+                class="info-tip"
+                title="Where students from this school are zoned to attend next, and where new students at this school were previously zoned to attend, as they advance from elementary to middle and from middle to high. The arrows show how many students are expected to transition between schools based on attendance zoning."
+                aria-label="More info: Feeder Flows"
+              >
+                ?
+              </button>
+            </summary>
+            <div id="sankey-row" class="sankey-row" aria-live="polite">
+              <div class="sankey-col sankey-col--es-ms">
+                <h3 class="sankey-subheading">Grades 6→7 (elementary → middle)</h3>
+                <div id="sankey-es-ms" class="sankey-chart">
+                  <p class="sankey-empty">Select a school to view feeder flows.</p>
+                </div>
+              </div>
+              <div class="sankey-col sankey-col--ms-hs">
+                <h3 class="sankey-subheading">Grades 8→9 (middle → high)</h3>
+                <div id="sankey-ms-hs" class="sankey-chart">
+                  <p class="sankey-empty">Select a school to view feeder flows.</p>
+                </div>
               </div>
             </div>
-            <div class="sankey-col sankey-col--ms-hs">
-              <h3 class="sankey-subheading">Grades 8→9 (middle → high)</h3>
-              <div id="sankey-ms-hs" class="sankey-chart">
-                <p class="sankey-empty">Select a school to view feeder flows.</p>
-              </div>
-            </div>
-          </div>
+          </details>
         </section>
 
         <section class="demographics-row" aria-label="Demographics charts">
@@ -890,28 +965,34 @@
         </section>
 
         <section class="ese-feeder-section" aria-labelledby="ese-feeder-heading">
-          <h2 class="ese-feeder-heading" id="ese-feeder-heading">
-            Exceptional Student Education Program Feeder Flows<button
-              type="button"
-              class="info-tip"
-              title="For students who need specialized services (often called ESE or special education), this shows which schools send these students here and which schools accept these students from here for those programs."
-              aria-label="More info: Exceptional Student Education Program Feeder Flows"
-            >?</button>
-          </h2>
-          <div class="ese-feeder-table-wrap">
-            <table class="ese-feeder-table">
-              <thead>
-                <tr>
-                  <th scope="col" class="ese-feeder-col-program">
-                    <span class="visually-hidden">Program</span>
-                  </th>
-                  <th scope="col">Accepts students from</th>
-                  <th scope="col">Sends students to</th>
-                </tr>
-              </thead>
-              <tbody id="ese-feeder-tbody"></tbody>
-            </table>
-          </div>
+          <details class="ese-feeder-details" id="ese-feeder-details" open>
+            <summary class="ese-feeder-heading" id="ese-feeder-heading">
+              <span class="ese-feeder-heading__label"
+                >Exceptional Student Education Program Feeder Flows</span
+              ><button
+                type="button"
+                class="info-tip"
+                title="For students who need specialized services (often called ESE or special education), this shows which schools send these students here and which schools accept these students from here for those programs."
+                aria-label="More info: Exceptional Student Education Program Feeder Flows"
+              >
+                ?
+              </button>
+            </summary>
+            <div class="ese-feeder-table-wrap" id="ese-feeder-table-wrap">
+              <table class="ese-feeder-table">
+                <thead>
+                  <tr>
+                    <th scope="col" class="ese-feeder-col-program">
+                      <span class="visually-hidden">Program</span>
+                    </th>
+                    <th scope="col">Accepts students from</th>
+                    <th scope="col">Sends students to</th>
+                  </tr>
+                </thead>
+                <tbody id="ese-feeder-tbody"></tbody>
+              </table>
+            </div>
+          </details>
         </section>
         </div>
 
@@ -923,7 +1004,7 @@
           hidden
         >
           <div class="scenario-subtab-row">
-            <div class="scenario-subtab-toggle" role="tablist" aria-label="Scenario Planning mode">
+            <div class="scenario-subtab-toggle" role="tablist" aria-label="Build your own Scenario mode">
               <button
                 type="button"
                 role="tab"
@@ -1001,7 +1082,8 @@
                 (<strong>utilization</strong>).
               </li>
               <li>
-                Pick a base school from the dropdown below to load its profile and nearby
+                <span class="howto-select-callout">Pick a base school</span>
+                from the dropdown below to load its profile and nearby
                 schools which could be consolidated with it.
               </li>
               <li>
@@ -1241,7 +1323,9 @@
                 can click on the colors to switch the active school boundary.
               </li>
               <li>
-                Choose a <strong>base school</strong> (optional), and/or use the
+                Choose a
+                <span class="howto-select-callout">base school</span>
+                (optional), and/or use the
                 <strong>map tools</strong> below to click and drag areas on the map
                 to add or erase them from your boundary. Each small hexagon is a
                 neighborhood-sized area (0.25mi wide, ~25 acres) where one or multiple
@@ -2051,6 +2135,16 @@
                 </h2>
                 <div class="travel-shed-menu-stack">
                   <div class="toggles" id="travel-shed-toggles"></div>
+                  <p
+                    id="travel-shed-loading-toast"
+                    class="layer-loading-toast"
+                    hidden
+                    role="status"
+                    aria-live="polite"
+                    aria-busy="false"
+                  >
+                    Loading travel sheds…
+                  </p>
                   <div
                     class="travel-shed-max-miles-row"
                     id="travel-shed-max-miles-row"

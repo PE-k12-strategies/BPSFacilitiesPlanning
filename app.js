@@ -38,13 +38,11 @@
 
   /**
    * Wraps fetch() to reuse promises started by the inline prefetch script in
-   * index.html (window.__prefetchPromises). Returns a Response-shaped object
-   * so existing call sites that do `.then(r => r.json())` or
-   * `.then(r => r.ok ? r.json() : null)` keep working unchanged.
-   *
-   * Cached values: parsed JSON (for json) or string (for text). A null/'' cache
-   * value indicates the prefetch failed; we expose ok=false and reject
-   * .json()/.text() so the caller's existing null/catch handling takes over.
+   * index.html (window.__prefetchPromises). Prefetch stores download-only
+   * Response promises (or already-parsed values for the small school_master
+   * index). Parsing happens here on first use so the welcome page stays
+   * responsive. Returns a Response-shaped object so existing call sites that
+   * do `.then(r => r.json())` keep working.
    *
    * @param {string} path
    * @param {"json"|"text"} [parseAs] defaults to "json"
@@ -54,32 +52,64 @@
     var mode = parseAs === "text" ? "text" : "json";
     var bag = typeof window !== "undefined" ? window.__prefetchPromises : null;
     var cached = bag ? bag[path] : null;
+
+    function wrapParsed(data) {
+      var hasData =
+        data !== null &&
+        data !== undefined &&
+        !(mode === "text" && data === "");
+      return {
+        ok: !!hasData,
+        status: hasData ? 200 : 0,
+        json: function () {
+          if (!hasData) {
+            return Promise.reject(
+              new Error("Prefetch returned no data for " + path)
+            );
+          }
+          return Promise.resolve(data);
+        },
+        text: function () {
+          if (!hasData) {
+            return Promise.reject(
+              new Error("Prefetch returned no data for " + path)
+            );
+          }
+          return Promise.resolve(data);
+        },
+      };
+    }
+
+    function isFetchResponse(data) {
+      return !!(
+        data &&
+        typeof data === "object" &&
+        typeof data.json === "function" &&
+        typeof data.text === "function" &&
+        typeof data.ok === "boolean" &&
+        data.headers
+      );
+    }
+
     if (cached) {
       return cached.then(function (data) {
-        var hasData =
-          data !== null &&
-          data !== undefined &&
-          !(mode === "text" && data === "");
-        return {
-          ok: !!hasData,
-          status: hasData ? 200 : 0,
-          json: function () {
-            if (!hasData) {
-              return Promise.reject(
-                new Error("Prefetch returned no data for " + path)
-              );
+        if (isFetchResponse(data)) {
+          if (!data.ok) {
+            var emptyFail = mode === "text" ? "" : null;
+            if (bag) bag[path] = Promise.resolve(emptyFail);
+            return wrapParsed(emptyFail);
+          }
+          var parseP = (mode === "text" ? data.text() : data.json()).catch(
+            function () {
+              return mode === "text" ? "" : null;
             }
-            return Promise.resolve(data);
-          },
-          text: function () {
-            if (!hasData) {
-              return Promise.reject(
-                new Error("Prefetch returned no data for " + path)
-              );
-            }
-            return Promise.resolve(data);
-          },
-        };
+          );
+          /* Replace with parse promise so concurrent smartFetch callers share one body read. */
+          if (bag) bag[path] = parseP;
+          return parseP.then(wrapParsed);
+        }
+        /* Already parsed (e.g. school_master_index) or failed null/"". */
+        return wrapParsed(data);
       });
     }
     return fetch(path);
@@ -1853,21 +1883,48 @@
   map.addControl(new mapboxgl.AttributionControl({ compact: true }), "bottom-right");
 
   map.on("error", function (evt) {
-    console.error(evt);
-    var msg =
+    console.error("[mapbox]", evt);
+    var technical =
       evt && evt.error && evt.error.message
-        ? evt.error.message
+        ? String(evt.error.message)
         : "Mapbox failed to load the basemap.";
+    var status =
+      evt && evt.error && evt.error.status != null
+        ? Number(evt.error.status)
+        : NaN;
+    var isForbidden =
+      status === 403 || /403|forbidden/i.test(technical);
+    /* Keep jargon (token paths, fetch failures) in the console only. */
+    console.error(
+      "[mapbox] Technical detail:",
+      technical,
+      MAPBOX_ACCESS_TOKEN
+        ? "(token is present in the page)"
+        : "(no Mapbox token on window — check deploy secret / config.local.js)",
+      isForbidden
+        ? "(HTTP 403 — check Mapbox token URL restrictions and scopes)"
+        : ""
+    );
+    if (isForbidden) {
+      showMapLoadingOverlayMessage(
+        "Unable to load map",
+        "The map service rejected this access token (403). In the Mapbox account for this token, allow this site’s URL (including localhost for local testing), confirm the token has public style/tile scopes, then refresh."
+      );
+      return;
+    }
     showMapLoadingOverlayMessage(
       "Unable to load map",
-      msg + " Check that config.local.js contains a valid Mapbox public token (pk.)."
+      "The map could not be loaded. Check your internet connection, then refresh the page. If this continues on a school or office network, the connection to the map service may be blocked."
     );
   });
 
   if (!MAPBOX_ACCESS_TOKEN) {
+    console.error(
+      "[mapbox] config.local.js was not found or has no Mapbox token. Local: copy config.local.js.example. GitHub Pages: set MAPBOX_ACCESS_TOKEN secret and redeploy."
+    );
     showMapLoadingOverlayMessage(
-      "Map configuration missing",
-      "config.local.js was not found or has no Mapbox token. For local use, copy config.local.js.example to config.local.js. For GitHub Pages, set the MAPBOX_ACCESS_TOKEN repository secret and redeploy."
+      "Unable to load map",
+      "The map is temporarily unavailable. Please try again later, or contact the project team if this continues."
     );
   }
 
@@ -2382,36 +2439,47 @@
 
     /* Build homeschool fallback geometry first so the filler mesh can treat those
        cells as occupied (prevents overlapping filler hexes on homeschool hexes). */
-    HOMESCHOOL_HEX_GEOMETRY_FALLBACK = buildHomeschoolHexGeometryFallback(
-      homeschoolFc && homeschoolFc.features ? homeschoolFc : null
-    );
-    if (studentHexFc && studentHexFc.features && studentHexFc.features.length) {
-      STUDENT_HEX_INDEX = buildStudentHexIndex(studentHexFc);
-      scenarioPkStudentMsidCache = Object.create(null);
-      TRAVEL_SHED_RESIDENCE_INDEX = buildTravelShedResidenceIndex(studentHexFc);
-      EMPTY_HEX_GEOMETRY = buildEmptyHexGeometryMesh(
-        STUDENT_HEX_INDEX ? STUDENT_HEX_INDEX.geometryByHexKey : null,
-        HOMESCHOOL_HEX_GEOMETRY_FALLBACK,
-        [].concat(
-          es && es.features ? es.features : [],
-          ms && ms.features ? ms.features : [],
-          hs && hs.features ? hs.features : []
-        )
+    if (!(homeschoolFc && homeschoolFc.__homeschoolIndexOnly)) {
+      HOMESCHOOL_HEX_GEOMETRY_FALLBACK = buildHomeschoolHexGeometryFallback(
+        homeschoolFc && homeschoolFc.features ? homeschoolFc : null
       );
-    } else {
-      STUDENT_HEX_INDEX = null;
-      TRAVEL_SHED_RESIDENCE_INDEX = null;
-      EMPTY_HEX_GEOMETRY = null;
     }
-    resetSandboxHexPluralityOwnerCache();
-    rebuildCharterAttendanceGradesLabelByMsid();
-    HOMESCHOOL_HEX_COUNTS = buildHomeschoolHexCounts(
-      homeschoolFc && homeschoolFc.features ? homeschoolFc : null
-    );
-    HOMESCHOOL_DETAILS_BY_HEX_KEY = buildHomeschoolDetailsByHexKey(
-      homeschoolFc && homeschoolFc.features ? homeschoolFc : null
-    );
-    clearHomeschoolInBoundaryCountCache();
+        if (
+          studentHexFc &&
+          studentHexFc.features &&
+          studentHexFc.features.length
+        ) {
+          STUDENT_HEX_INDEX = buildStudentHexIndex(studentHexFc);
+          scenarioPkStudentMsidCache = Object.create(null);
+          TRAVEL_SHED_RESIDENCE_INDEX = buildTravelShedResidenceIndex(studentHexFc);
+          EMPTY_HEX_GEOMETRY = buildEmptyHexGeometryMesh(
+            STUDENT_HEX_INDEX ? STUDENT_HEX_INDEX.geometryByHexKey : null,
+            HOMESCHOOL_HEX_GEOMETRY_FALLBACK,
+            [].concat(
+              es && es.features ? es.features : [],
+              ms && ms.features ? ms.features : [],
+              hs && hs.features ? hs.features : []
+            )
+          );
+        } else if (studentHexFc && studentHexFc.__hexIndexOnly && STUDENT_HEX_INDEX) {
+          /* Worker-built index already in memory — keep it across style reloads. */
+          scheduleEmptyHexMeshBuild();
+        } else if (!STUDENT_HEX_INDEX) {
+          STUDENT_HEX_INDEX = null;
+          TRAVEL_SHED_RESIDENCE_INDEX = null;
+          EMPTY_HEX_GEOMETRY = null;
+        }
+        resetSandboxHexPluralityOwnerCache();
+        rebuildCharterAttendanceGradesLabelByMsid();
+        if (!(homeschoolFc && homeschoolFc.__homeschoolIndexOnly)) {
+          HOMESCHOOL_HEX_COUNTS = buildHomeschoolHexCounts(
+            homeschoolFc && homeschoolFc.features ? homeschoolFc : null
+          );
+          HOMESCHOOL_DETAILS_BY_HEX_KEY = buildHomeschoolDetailsByHexKey(
+            homeschoolFc && homeschoolFc.features ? homeschoolFc : null
+          );
+        }
+        clearHomeschoolInBoundaryCountCache();
 
     GEO_CACHE.es = es;
     GEO_CACHE.ms = ms;
@@ -2442,9 +2510,7 @@
         privateFc || { type: "FeatureCollection", features: [] }
       );
     }
-    SCHOOL_ISOCHRONES_ENRICHED = buildSchoolIsochronesEnriched(
-      results[13] || { type: "FeatureCollection", features: [] }
-    );
+    applyIsochronesFromResultsSlot(results);
     if (map.getSource("school-isochrones")) {
       map.getSource("school-isochrones").setData(
         SCHOOL_ISOCHRONES_ENRICHED || {
@@ -2751,9 +2817,7 @@
     var privateFc = preparePrivateSchoolsMapFc(results[15]);
     var homeschoolFc = results[16];
     CHARTER_SCHOOL_MSIDS = buildCharterSchoolMsidSet(schools, charterFc);
-    SCHOOL_ISOCHRONES_ENRICHED = buildSchoolIsochronesEnriched(
-      results[13] || { type: "FeatureCollection", features: [] }
-    );
+    applyIsochronesFromResultsSlot(results);
 
     if (map.getSource("es-boundaries")) {
       refreshGeoJsonSourcesAfterStyleReload(results, {
@@ -3606,10 +3670,16 @@
 
         /* Build homeschool fallback geometry first so the filler mesh can treat those
            cells as occupied (prevents overlapping filler hexes on homeschool hexes). */
-        HOMESCHOOL_HEX_GEOMETRY_FALLBACK = buildHomeschoolHexGeometryFallback(
-          homeschoolFc && homeschoolFc.features ? homeschoolFc : null
-        );
-        if (studentHexFc && studentHexFc.features && studentHexFc.features.length) {
+        if (!(homeschoolFc && homeschoolFc.__homeschoolIndexOnly)) {
+          HOMESCHOOL_HEX_GEOMETRY_FALLBACK = buildHomeschoolHexGeometryFallback(
+            homeschoolFc && homeschoolFc.features ? homeschoolFc : null
+          );
+        }
+        if (
+          studentHexFc &&
+          studentHexFc.features &&
+          studentHexFc.features.length
+        ) {
           STUDENT_HEX_INDEX = buildStudentHexIndex(studentHexFc);
           scenarioPkStudentMsidCache = Object.create(null);
           TRAVEL_SHED_RESIDENCE_INDEX = buildTravelShedResidenceIndex(studentHexFc);
@@ -3622,19 +3692,27 @@
               hs && hs.features ? hs.features : []
             )
           );
-        } else {
+        } else if (
+          studentHexFc &&
+          studentHexFc.__hexIndexOnly &&
+          STUDENT_HEX_INDEX
+        ) {
+          scheduleEmptyHexMeshBuild();
+        } else if (!STUDENT_HEX_INDEX) {
           STUDENT_HEX_INDEX = null;
           TRAVEL_SHED_RESIDENCE_INDEX = null;
           EMPTY_HEX_GEOMETRY = null;
         }
         resetSandboxHexPluralityOwnerCache();
         rebuildCharterAttendanceGradesLabelByMsid();
-        HOMESCHOOL_HEX_COUNTS = buildHomeschoolHexCounts(
-          homeschoolFc && homeschoolFc.features ? homeschoolFc : null
-        );
-        HOMESCHOOL_DETAILS_BY_HEX_KEY = buildHomeschoolDetailsByHexKey(
-          homeschoolFc && homeschoolFc.features ? homeschoolFc : null
-        );
+        if (!(homeschoolFc && homeschoolFc.__homeschoolIndexOnly)) {
+          HOMESCHOOL_HEX_COUNTS = buildHomeschoolHexCounts(
+            homeschoolFc && homeschoolFc.features ? homeschoolFc : null
+          );
+          HOMESCHOOL_DETAILS_BY_HEX_KEY = buildHomeschoolDetailsByHexKey(
+            homeschoolFc && homeschoolFc.features ? homeschoolFc : null
+          );
+        }
         clearHomeschoolInBoundaryCountCache();
 
         if (!mapLayersInitialized) {
@@ -3684,20 +3762,287 @@
     applyGeoJsonLayersFromFetchResults(geoJsonDataCache, { fitBounds: false });
   });
 
-  map.on("load", function () {
-    if (!MAPBOX_ACCESS_TOKEN) return;
-    setupMapDensityLegendViewListeners();
-    var basemapRoot = document.getElementById("basemap-toggle");
-    if (basemapRoot) {
-      basemapRoot.querySelectorAll("[data-basemap]").forEach(function (btn) {
-        btn.addEventListener("click", function () {
-          var mode = btn.getAttribute("data-basemap");
-          if (MAPBOX_STYLES[mode]) setMapboxBasemap(mode);
-        });
-      });
+  /**
+   * Lazy-load helpers for isochrones (Travel sheds) and student hex (Scenario Planning).
+   * Keeps geoJsonDataCache index slots 6 / 13 stable for basemap style reloads.
+   */
+  function applyIsochronesFromResultsSlot(results) {
+    var incoming = results && results[13];
+    var hasIncoming =
+      incoming &&
+      incoming.features &&
+      incoming.features.length &&
+      !incoming.__placeholder;
+    if (hasIncoming) {
+      SCHOOL_ISOCHRONES_ENRICHED = buildSchoolIsochronesEnriched(incoming);
+      return;
     }
+    if (isoDataReady && SCHOOL_ISOCHRONES_ENRICHED) {
+      return;
+    }
+    SCHOOL_ISOCHRONES_ENRICHED = buildSchoolIsochronesEnriched(
+      incoming || { type: "FeatureCollection", features: [] }
+    );
+  }
 
-    Promise.all([
+  function applyDeferredIsochronesToMap(isoFc) {
+    SCHOOL_ISOCHRONES_ENRICHED =
+      isoFc && isoFc.features
+        ? isoFc
+        : { type: "FeatureCollection", features: [] };
+    /* Worker already enriched; skip rebuildSchoolIsochronesEnriched. */
+    if (geoJsonDataCache) {
+      geoJsonDataCache[13] = SCHOOL_ISOCHRONES_ENRICHED;
+    }
+    syncTravelShedLayerFilter();
+  }
+
+  function scheduleEmptyHexMeshBuild() {
+    function run() {
+      buildEmptyHexMeshNow();
+    }
+    if (typeof requestIdleCallback === "function") {
+      requestIdleCallback(
+        function () {
+          yieldToBrowser(0).then(run);
+        },
+        { timeout: 4000 }
+      );
+    } else {
+      yieldToBrowser(200).then(run);
+    }
+  }
+
+  function buildEmptyHexMeshNow() {
+    if (!STUDENT_HEX_INDEX || !STUDENT_HEX_INDEX.geometryByHexKey) return;
+    var es = GEO_CACHE.es;
+    var ms = GEO_CACHE.ms;
+    var hs = GEO_CACHE.hs;
+    try {
+      EMPTY_HEX_GEOMETRY = buildEmptyHexGeometryMesh(
+        STUDENT_HEX_INDEX.geometryByHexKey,
+        HOMESCHOOL_HEX_GEOMETRY_FALLBACK,
+        [].concat(
+          es && es.features ? es.features : [],
+          ms && ms.features ? ms.features : [],
+          hs && hs.features ? hs.features : []
+        )
+      );
+    } catch (eMesh) {
+      console.error("[empty hex mesh]", eMesh);
+      EMPTY_HEX_GEOMETRY = null;
+    }
+    if (mapLayersInitialized) {
+      try {
+        rebuildBoundarySandboxHexSourceFromIndex();
+        syncBoundarySandboxMapLayers();
+      } catch (eSync) {
+        /* ignore */
+      }
+    }
+  }
+
+  /**
+   * @param {*} payload worker hex result
+   * @param {{ syncHeavy?: boolean }} [opts] when syncHeavy, build mesh/neighbors
+   *   before returning so the loading overlay can stay up through the freeze.
+   */
+  function applyDeferredHexFromWorker(payload, opts) {
+    var syncHeavy = !!(opts && opts.syncHeavy);
+    if (geoJsonDataCache) {
+      /* No full FC from worker (avoids multi-second structured-clone stall). */
+      geoJsonDataCache[6] = payload && payload.index
+        ? { __hexIndexOnly: true }
+        : null;
+    }
+    if (payload && payload.index) {
+      STUDENT_HEX_INDEX = payload.index;
+      scenarioPkStudentMsidCache = Object.create(null);
+      TRAVEL_SHED_RESIDENCE_INDEX = payload.travelIndex || null;
+      EMPTY_HEX_GEOMETRY = null;
+    } else {
+      STUDENT_HEX_INDEX = null;
+      TRAVEL_SHED_RESIDENCE_INDEX = null;
+      EMPTY_HEX_GEOMETRY = null;
+    }
+    resetSandboxHexPluralityOwnerCache();
+    rebuildCharterAttendanceGradesLabelByMsid();
+    if (mapLayersInitialized) {
+      syncStudentHexLayer();
+      rebuildBoundarySandboxHexSourceFromIndex();
+      syncBoundarySandboxMapLayers();
+      try {
+        renderSandboxSummaryTable();
+      } catch (eSandbox) {
+        /* ignore */
+      }
+    }
+    if (syncHeavy) {
+      buildEmptyHexMeshNow();
+      buildHexNeighborsNow();
+    } else {
+      scheduleEmptyHexMeshBuild();
+      scheduleHexNeighborRebuild();
+    }
+  }
+
+  function buildHexNeighborsNow() {
+    if (
+      !STUDENT_HEX_INDEX ||
+      !STUDENT_HEX_INDEX.geometryByHexKey ||
+      typeof turf === "undefined" ||
+      !turf
+    ) {
+      return;
+    }
+    try {
+      var nbr = buildHexNeighborMap(STUDENT_HEX_INDEX.geometryByHexKey);
+      if (nbr) STUDENT_HEX_INDEX.neighborsByHexKey = nbr;
+    } catch (eNbr) {
+      /* ignore — neighbors optional */
+    }
+  }
+
+  function scheduleHexNeighborRebuild() {
+    function run() {
+      buildHexNeighborsNow();
+    }
+    if (typeof requestIdleCallback === "function") {
+      requestIdleCallback(
+        function () {
+          yieldToBrowser(0).then(run);
+        },
+        { timeout: 8000 }
+      );
+    } else {
+      yieldToBrowser(500).then(run);
+    }
+  }
+
+  /** Yield so the browser can paint and handle pan/zoom before heavy work. */
+  function yieldToBrowser(ms) {
+    var delay = typeof ms === "number" ? ms : 0;
+    return new Promise(function (resolve) {
+      requestAnimationFrame(function () {
+        setTimeout(resolve, delay);
+      });
+    });
+  }
+
+  function absoluteDataUrl(path) {
+    try {
+      return new URL(path, window.location.href).href;
+    } catch (eUrl) {
+      return path;
+    }
+  }
+
+  /**
+   * Run fetch+JSON.parse(+index build) in a Worker so the main thread stays interactive.
+   * @param {"iso"|"hex"|"homeschool"} op
+   * @param {string} path relative data path
+   */
+  function runHeavyGeoWorker(op, path) {
+    return new Promise(function (resolve, reject) {
+      if (typeof Worker === "undefined") {
+        reject(new Error("Worker unsupported"));
+        return;
+      }
+      var workerUrl = absoluteDataUrl("workers/parse-heavy-geo.js");
+      var w;
+      try {
+        w = new Worker(workerUrl);
+      } catch (eCreate) {
+        reject(eCreate);
+        return;
+      }
+      var settled = false;
+      function finish(err, data) {
+        if (settled) return;
+        settled = true;
+        try {
+          w.terminate();
+        } catch (eTerm) {
+          /* ignore */
+        }
+        if (err) reject(err);
+        else resolve(data);
+      }
+      w.onmessage = function (ev) {
+        var msg = ev.data || {};
+        if (!msg.ok) {
+          finish(new Error(msg.error || "Heavy geo worker failed"));
+          return;
+        }
+        finish(null, msg);
+      };
+      w.onerror = function (err) {
+        finish(err && err.message ? new Error(err.message) : new Error("Worker error"));
+      };
+      w.postMessage({ op: op, url: absoluteDataUrl(path), id: op });
+    });
+  }
+
+  /**
+   * Core geo (everything except student hex + travel isochrones) starts on the
+   * welcome page via workers/smartFetch so Enter Dashboard is fast. Hex and
+   * isochrones load only when Scenario Planning / Travel sheds are first used.
+   */
+  var coreGeoPromise = null;
+  var coreGeoApplied = false;
+  var isoLoadPromise = null;
+  var isoDataReady = false;
+  var hexLoadPromise = null;
+  var hexDataReady = false;
+  /** Map overlay purpose: "core" | "hex" | null */
+  var mapOverlayMode = null;
+
+  function emptyFeatureCollection() {
+    return { type: "FeatureCollection", features: [] };
+  }
+
+  function showTravelShedLoadingToast(show) {
+    var el = document.getElementById("travel-shed-loading-toast");
+    if (!el) return;
+    if (show) {
+      el.hidden = false;
+      el.setAttribute("aria-busy", "true");
+    } else {
+      el.hidden = true;
+      el.setAttribute("aria-busy", "false");
+    }
+  }
+
+  function ingestHomeschoolWorkerMsg(msg) {
+    HOMESCHOOL_HEX_COUNTS = (msg && msg.counts) || Object.create(null);
+    HOMESCHOOL_DETAILS_BY_HEX_KEY = (msg && msg.details) || Object.create(null);
+    HOMESCHOOL_HEX_GEOMETRY_FALLBACK =
+      (msg && msg.geometryFallback) || Object.create(null);
+    clearHomeschoolInBoundaryCountCache();
+  }
+
+  function loadHomeschoolForCore() {
+    return runHeavyGeoWorker("homeschool", DATA.homeschoolStudentHexagons)
+      .then(function (msg) {
+        ingestHomeschoolWorkerMsg(msg);
+        return { __homeschoolIndexOnly: true };
+      })
+      .catch(function (errHm) {
+        console.error("[homeschool background]", errHm);
+        return smartFetch(DATA.homeschoolStudentHexagons)
+          .then(function (r) {
+            return r.ok ? r.json() : emptyFeatureCollection();
+          })
+          .catch(function () {
+            return emptyFeatureCollection();
+          });
+      });
+  }
+
+  /** Begin download+parse of core dashboard geo while welcome is still showing. */
+  function startCoreGeoBackgroundLoad() {
+    if (coreGeoPromise) return coreGeoPromise;
+    coreGeoPromise = Promise.all([
       smartFetch(DATA.es).then(function (r) {
         return r.json();
       }),
@@ -3718,25 +4063,8 @@
         .catch(function () {
           return null;
         }),
-      smartFetch(DATA.studentHexagons)
-        .then(function (r) {
-          return r.ok ? r.json() : null;
-        })
-        .then(function (data) {
-          if (!data) {
-            return null;
-          }
-          if (data.v === 2) {
-            return expandStudentHexBundleToFeatureCollection(data);
-          }
-          if (data.type === "FeatureCollection") {
-            return data;
-          }
-          return null;
-        })
-        .catch(function () {
-          return null;
-        }),
+      /* Slot 6: student hex — on demand (Scenario Planning). */
+      Promise.resolve(null),
       smartFetch(DATA.schoolParcels)
         .then(function (r) {
           return r.ok ? r.json() : null;
@@ -3746,17 +4074,17 @@
         }),
       smartFetch(DATA.schoolBoardDistricts)
         .then(function (r) {
-          return r.ok ? r.json() : { type: "FeatureCollection", features: [] };
+          return r.ok ? r.json() : emptyFeatureCollection();
         })
         .catch(function () {
-          return { type: "FeatureCollection", features: [] };
+          return emptyFeatureCollection();
         }),
       smartFetch(DATA.charterSchoolLocations)
         .then(function (r) {
-          return r.ok ? r.json() : { type: "FeatureCollection", features: [] };
+          return r.ok ? r.json() : emptyFeatureCollection();
         })
         .catch(function () {
-          return { type: "FeatureCollection", features: [] };
+          return emptyFeatureCollection();
         }),
       smartFetch(DATA.meadowlaneCaptureOverride)
         .then(function (r) {
@@ -3767,10 +4095,10 @@
         }),
       smartFetch(DATA.municipalBoundaries)
         .then(function (r) {
-          return r.ok ? r.json() : { type: "FeatureCollection", features: [] };
+          return r.ok ? r.json() : emptyFeatureCollection();
         })
         .catch(function () {
-          return { type: "FeatureCollection", features: [] };
+          return emptyFeatureCollection();
         }),
       smartFetch(DATA.eseFeederMatrix)
         .then(function (r) {
@@ -3779,13 +4107,8 @@
         .catch(function () {
           return null;
         }),
-      smartFetch(DATA.schoolIsochrones)
-        .then(function (r) {
-          return r.ok ? r.json() : { type: "FeatureCollection", features: [] };
-        })
-        .catch(function () {
-          return { type: "FeatureCollection", features: [] };
-        }),
+      /* Slot 13: isochrones — on demand (Travel sheds toggle). */
+      Promise.resolve(emptyFeatureCollection()),
       smartFetch(DATA.bpsEmployeeCount)
         .then(function (r) {
           return r.ok ? r.json() : null;
@@ -3795,18 +4118,12 @@
         }),
       smartFetch(DATA.privateSchoolLocations)
         .then(function (r) {
-          return r.ok ? r.json() : { type: "FeatureCollection", features: [] };
+          return r.ok ? r.json() : emptyFeatureCollection();
         })
         .catch(function () {
-          return { type: "FeatureCollection", features: [] };
+          return emptyFeatureCollection();
         }),
-      smartFetch(DATA.homeschoolStudentHexagons)
-        .then(function (r) {
-          return r.ok ? r.json() : { type: "FeatureCollection", features: [] };
-        })
-        .catch(function () {
-          return { type: "FeatureCollection", features: [] };
-        }),
+      loadHomeschoolForCore(),
       smartFetch(DATA.hexAssignmentOwners)
         .then(function (r) {
           return r.ok ? r.json() : null;
@@ -3814,54 +4131,266 @@
         .catch(function () {
           return null;
         }),
-    ])
-      .then(function (results) {
-        /* Index map (kept aligned with the Promise.all order above):
-             0  es                     6  studentHexagons       12  eseFeederMatrix
-             1  ms                     7  schoolParcels         13  schoolIsochrones
-             2  hs                     8  schoolBoardDistricts  14  bpsEmployeeCount
-             3  schools                9  charterSchoolLocations 15  privateSchoolLocations
-             4  masterByMsid (object) 10  meadowlaneCapture…    16  homeschoolStudentHexagons
-             5  sankeyEsMs            11  municipalBoundaries   17  hexAssignmentOwners
-           travelImpact was removed (#4) — its slot is gone, all later indices shift down by 1. */
-        MASTER_BY_MSID = results[4] || null;
-        SANKEY_CACHE = results[5];
-        geoJsonDataCache = results;
-        MEADOWLANE_CAPTURE_OVERRIDE = results[10];
-        ESE_FEEDER_MATRIX = results[12] || null;
-        BPS_EMPLOYEE_COUNT_BY_MSID =
-          results[14] && results[14].byMsid ? results[14].byMsid : null;
-        applySandboxHexAssignmentOwners(results[17]);
-        MIDDLE_SCHOOL_MSID_SET = buildMiddleSchoolMsidSetFromSchoolsFc(
-          enrichSchoolsFcWithMasterType(results[3])
+    ]).catch(function (err) {
+      console.error("[core geo background]", err);
+      throw err;
+    });
+    return coreGeoPromise;
+  }
+
+  function applyCoreGeoResults(results) {
+    MASTER_BY_MSID = results[4] || null;
+    SANKEY_CACHE = results[5];
+    geoJsonDataCache = results;
+    MEADOWLANE_CAPTURE_OVERRIDE = results[10];
+    ESE_FEEDER_MATRIX = results[12] || null;
+    BPS_EMPLOYEE_COUNT_BY_MSID =
+      results[14] && results[14].byMsid ? results[14].byMsid : null;
+    applySandboxHexAssignmentOwners(results[17]);
+    MIDDLE_SCHOOL_MSID_SET = buildMiddleSchoolMsidSetFromSchoolsFc(
+      enrichSchoolsFcWithMasterType(results[3])
+    );
+    if (MEADOWLANE_CAPTURE_OVERRIDE && MEADOWLANE_CAPTURE_OVERRIDE.zoning_audit) {
+      var za =
+        MEADOWLANE_CAPTURE_OVERRIDE.zoning_audit
+          .student_count_with_zoned_msid_2031_in_any_column;
+      if (za != null && !isNaN(Number(za)) && Number(za) > 0) {
+        console.warn(
+          "[Meadowlane] zoning_audit: non-zero count of students with zoned MSID 2031 in a zoning column:",
+          za
         );
-        if (MEADOWLANE_CAPTURE_OVERRIDE && MEADOWLANE_CAPTURE_OVERRIDE.zoning_audit) {
-          var za =
-            MEADOWLANE_CAPTURE_OVERRIDE.zoning_audit
-              .student_count_with_zoned_msid_2031_in_any_column;
-          if (za != null && !isNaN(Number(za)) && Number(za) > 0) {
-            console.warn(
-              "[Meadowlane] zoning_audit: non-zero count of students with zoned MSID 2031 in a zoning column:",
-              za
+      }
+    }
+    applyGeoJsonLayersFromFetchResults(results, { fitBounds: true });
+    var selAfter = document.getElementById("school-select");
+    if (selAfter && selAfter.value) {
+      renderEseFeederFlowsTable(Number(selAfter.value));
+    } else {
+      renderEseFeederFlowsTable(null);
+    }
+    coreGeoApplied = true;
+    if (mapOverlayMode === "hex") {
+      showMapLoadingOverlayMessage(
+        "Loading student data",
+        "Preparing enrollment and boundary scenario tools. This may take a moment."
+      );
+    } else {
+      mapOverlayMode = null;
+      hideMapLoadingOverlay();
+    }
+    try {
+      if (map && typeof map.resize === "function") map.resize();
+      if (map && typeof map.triggerRepaint === "function") map.triggerRepaint();
+      if (map && map.dragPan && typeof map.dragPan.enable === "function") {
+        map.dragPan.enable();
+      }
+      if (map && map.scrollZoom && typeof map.scrollZoom.enable === "function") {
+        map.scrollZoom.enable();
+      }
+    } catch (eReveal) {
+      /* ignore */
+    }
+  }
+
+  /** Travel sheds: load isochrones the first time the layer is turned on. */
+  function ensureIsochronesLoaded() {
+    if (isoDataReady && SCHOOL_ISOCHRONES_ENRICHED) {
+      return Promise.resolve();
+    }
+    if (isoLoadPromise) return isoLoadPromise;
+    showTravelShedLoadingToast(true);
+    isoLoadPromise = runHeavyGeoWorker("iso", DATA.schoolIsochrones)
+      .then(function (msg) {
+        return yieldToBrowser(0).then(function () {
+          applyDeferredIsochronesToMap(msg.fc || emptyFeatureCollection());
+          isoDataReady = true;
+        });
+      })
+      .catch(function (errIso) {
+        console.error("[travel sheds load]", errIso);
+        return smartFetch(DATA.schoolIsochrones)
+          .then(function (r) {
+            return r.ok ? r.json() : emptyFeatureCollection();
+          })
+          .then(function (raw) {
+            applyDeferredIsochronesToMap(
+              buildSchoolIsochronesEnriched(raw || emptyFeatureCollection())
             );
-          }
+            isoDataReady = true;
+          })
+          .catch(function () {
+            applyDeferredIsochronesToMap(emptyFeatureCollection());
+            isoDataReady = true;
+          });
+      })
+      .then(function () {
+        showTravelShedLoadingToast(false);
+      });
+    return isoLoadPromise;
+  }
+
+  /** Scenario Planning: load student hex indexes the first time that page opens. */
+  function ensureStudentHexLoaded() {
+    if (hexDataReady && STUDENT_HEX_INDEX) {
+      return Promise.resolve();
+    }
+    if (hexLoadPromise) return hexLoadPromise;
+    mapOverlayMode = "hex";
+
+    function paintStudentDataOverlay() {
+      showMapLoadingOverlayMessage(
+        "Loading student data",
+        "Preparing enrollment and boundary scenario tools. This may take a moment."
+      );
+      /* Double rAF so the overlay is on-screen before parse/apply can freeze the UI. */
+      return new Promise(function (resolve) {
+        requestAnimationFrame(function () {
+          requestAnimationFrame(resolve);
+        });
+      });
+    }
+
+    hexLoadPromise = paintStudentDataOverlay()
+      .then(function () {
+        return startCoreGeoBackgroundLoad();
+      })
+      .catch(function () {
+        /* Core may have failed earlier; still try hex. */
+      })
+      .then(function () {
+        showMapLoadingOverlayMessage(
+          "Loading student data",
+          "Preparing enrollment and boundary scenario tools. This may take a moment."
+        );
+        return runHeavyGeoWorker("hex", DATA.studentHexagons);
+      })
+      .then(function (msg) {
+        /* Keep overlay up through main-thread apply + mesh build (no yield). */
+        showMapLoadingOverlayMessage(
+          "Loading student data",
+          "Preparing enrollment and boundary scenario tools. This may take a moment."
+        );
+        applyDeferredHexFromWorker(msg, { syncHeavy: true });
+        hexDataReady = !!(msg && msg.index);
+      })
+      .catch(function (errHex) {
+        console.error("[student hex load]", errHex);
+        showMapLoadingOverlayMessage(
+          "Loading student data",
+          "Preparing enrollment and boundary scenario tools. This may take a moment."
+        );
+        return smartFetch(DATA.studentHexagons)
+          .then(function (r) {
+            return r.ok ? r.json() : null;
+          })
+          .then(function (data) {
+            var studentHexFc = null;
+            if (data && data.v === 2) {
+              studentHexFc = expandStudentHexBundleToFeatureCollection(data);
+            } else if (data && data.type === "FeatureCollection") {
+              studentHexFc = data;
+            }
+            if (studentHexFc) {
+              applyDeferredHexFromWorker(
+                {
+                  index: buildStudentHexIndex(studentHexFc),
+                  travelIndex: buildTravelShedResidenceIndex(studentHexFc),
+                },
+                { syncHeavy: true }
+              );
+              hexDataReady = true;
+            } else {
+              applyDeferredHexFromWorker(null, { syncHeavy: true });
+              hexDataReady = false;
+            }
+          })
+          .catch(function () {
+            applyDeferredHexFromWorker(null, { syncHeavy: true });
+            hexDataReady = false;
+          });
+      })
+      .then(function () {
+        if (mapOverlayMode === "hex") {
+          mapOverlayMode = null;
+          if (coreGeoApplied) hideMapLoadingOverlay();
         }
-        applyGeoJsonLayersFromFetchResults(results, { fitBounds: true });
-        var selAfter = document.getElementById("school-select");
-        if (selAfter && selAfter.value) {
-          renderEseFeederFlowsTable(Number(selAfter.value));
-        } else {
-          renderEseFeederFlowsTable(null);
-        }
-        hideMapLoadingOverlay();
+      });
+    return hexLoadPromise;
+  }
+
+  var mapReadyForGeo = false;
+  var dashboardEnteredForGeo = false;
+  var primaryGeoLoadStarted = false;
+
+  try {
+    if (document.body.classList.contains("dashboard-unlocked")) {
+      dashboardEnteredForGeo = true;
+    }
+  } catch (eEnteredInit) {
+    /* ignore */
+  }
+
+  /* Start core parse/download during welcome (under-gate map warm). */
+  startCoreGeoBackgroundLoad();
+
+  function tryBeginDashboardGeoLoad() {
+    if (!mapReadyForGeo || !dashboardEnteredForGeo || primaryGeoLoadStarted) {
+      return;
+    }
+    if (!MAPBOX_ACCESS_TOKEN) return;
+    primaryGeoLoadStarted = true;
+    mapOverlayMode = "core";
+
+    startCoreGeoBackgroundLoad()
+      .then(function (results) {
+        return yieldToBrowser(0).then(function () {
+          applyCoreGeoResults(results);
+        });
       })
       .catch(function (err) {
         console.error(err);
+        mapOverlayMode = null;
         hideMapLoadingOverlay();
         alert(
           "Could not load GeoJSON data. Use Live Server (or any local web server) from this project folder so files under /geo can be fetched."
         );
       });
+  }
+
+  window.__onDashboardEntered = function () {
+    dashboardEnteredForGeo = true;
+    try {
+      if (map && typeof map.resize === "function") {
+        map.resize();
+        requestAnimationFrame(function () {
+          try {
+            map.resize();
+          } catch (eR2) {
+            /* ignore */
+          }
+        });
+      }
+    } catch (eResize) {
+      /* ignore */
+    }
+    tryBeginDashboardGeoLoad();
+  };
+
+  map.on("load", function () {
+    if (!MAPBOX_ACCESS_TOKEN) return;
+    setupMapDensityLegendViewListeners();
+    var basemapRoot = document.getElementById("basemap-toggle");
+    if (basemapRoot) {
+      basemapRoot.querySelectorAll("[data-basemap]").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var mode = btn.getAttribute("data-basemap");
+          if (MAPBOX_STYLES[mode]) setMapboxBasemap(mode);
+        });
+      });
+    }
+
+    mapReadyForGeo = true;
+    tryBeginDashboardGeoLoad();
   });
 
   /** Safety net if map load or data fetch hangs (e.g. missing deploy artifacts). */
@@ -8064,8 +8593,16 @@
           defaultChecked: false,
         },
         function () {
-          syncTravelShedLayerFilter();
-          syncTravelShedMaxMilesRowVisibility();
+          var inp = document.getElementById("toggle-travel-sheds");
+          if (inp && inp.checked) {
+            ensureIsochronesLoaded().then(function () {
+              syncTravelShedLayerFilter();
+              syncTravelShedMaxMilesRowVisibility();
+            });
+          } else {
+            syncTravelShedLayerFilter();
+            syncTravelShedMaxMilesRowVisibility();
+          }
         }
       );
     }
@@ -9666,9 +10203,12 @@
     });
     var leftList = Object.keys(leftSet);
     var rightList = Object.keys(rightSet);
-    var h = Math.max(
-      320,
-      Math.min(580, leftList.length * 40 + rightList.length * 48 + 110)
+    /* ~5% shorter than the prior floor/cap formula to save vertical scroll. */
+    var h = Math.round(
+      Math.max(
+        320,
+        Math.min(580, leftList.length * 40 + rightList.length * 48 + 110)
+      ) * 0.95
     );
     var nodes = leftList
       .map(function (name) {
@@ -9709,7 +10249,7 @@
     var sankeyLayout = d3
       .sankey()
       .nodeWidth(10)
-      .nodePadding(8)
+      .nodePadding(7)
       .extent([
         [padL + 6, padY],
         [padL + graphW - 6, h - padY],
@@ -11049,7 +11589,10 @@
     var mr = 10;
     var perBar = hasLargeBarValues ? 38 : 34;
     var w = Math.min(1280, Math.max(480, ml + mr + n * perBar));
-    var h = 252;
+    var h =
+      typeof options.chartHeight === "number" && options.chartHeight > 0
+        ? options.chartHeight
+        : 252;
     var iw = w - ml - mr;
     var ih = h - mt - mb;
     var slot = iw / n;
@@ -11168,6 +11711,7 @@
     if (msid == null || isNaN(msid)) {
       var distSeries = buildDistrictEnrollmentSeries();
       renderEnrollmentChartIntoRoot(root, distSeries, {
+        chartHeight: 240,
         noDataMsg:
           "No district-wide enrollment data is available.",
         noDataAria:
@@ -11179,6 +11723,7 @@
     }
     var series = buildEnrollmentSeries(msid);
     renderEnrollmentChartIntoRoot(root, series, {
+      chartHeight: 240,
       noDataMsg:
         "No enrollment data is available for this school.",
       noDataAria:
@@ -18369,7 +18914,7 @@
         id: "scenario",
         tab: document.getElementById("page-tab-scenario"),
         panel: document.getElementById("page-scenario"),
-        label: "Scenario Planning",
+        label: "Build your own Scenario",
         step: 2,
       },
       {
@@ -18457,6 +19002,7 @@
         t.panel.hidden = !isOn;
       }
       if (active === "scenario") {
+        ensureStudentHexLoaded();
         /* Re-sync sub-panels (preserves which sub-tab the user was on). */
         var keepSub = scenarioActiveSubtabId();
         setScenarioSubtab(keepSub);
@@ -18846,6 +19392,7 @@
         if (isLoadingState()) {
           triggerText.textContent = "Loading schools\u2026";
           triggerText.classList.add("is-placeholder");
+          wrap.classList.remove("is-select-prompt");
           return;
         }
         var current = null;
@@ -18858,9 +19405,11 @@
         if (current) {
           triggerText.textContent = current.label;
           triggerText.classList.remove("is-placeholder");
+          wrap.classList.remove("is-select-prompt");
         } else {
           triggerText.textContent = placeholderLabel || "Select a school";
           triggerText.classList.add("is-placeholder");
+          wrap.classList.add("is-select-prompt");
         }
       }
 
@@ -19088,6 +19637,40 @@
             syncOne(d);
           });
         })(all[i]);
+      }
+      /* Info tip inside collapsible summaries must not toggle the details. */
+      function blockSummaryInfoTip(detailsId) {
+        var details = document.getElementById(detailsId);
+        if (!details) return;
+        var tip = details.querySelector("summary .info-tip");
+        if (!tip) return;
+        tip.addEventListener("click", function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+        });
+      }
+      blockSummaryInfoTip("ese-feeder-details");
+      blockSummaryInfoTip("sankey-details");
+
+      /* Re-layout Sankey when expanding — charts sized while closed get width 0. */
+      var sankeyDetails = document.getElementById("sankey-details");
+      if (sankeyDetails) {
+        sankeyDetails.addEventListener("toggle", function () {
+          if (!sankeyDetails.open) return;
+          requestAnimationFrame(function () {
+            if (typeof renderSankeyPanel !== "function") return;
+            if (selectedSchoolMsid != null) {
+              var props = findSchoolPropertiesFromGeoCacheByMsid(
+                selectedSchoolMsid
+              );
+              renderSankeyPanel(
+                props ? schoolPropsWithMasterType(props) : null
+              );
+            } else {
+              renderSankeyPanel(null);
+            }
+          });
+        });
       }
     }
     if (document.readyState === "loading") {
@@ -19983,7 +20566,7 @@
     if (helperEl) {
       helperEl.textContent = which === "sandbox"
         ? "Email a summary of your current Boundary Sandbox setup. Your default email client will open with the message pre-filled — you click Send. Attach the downloaded PDF for a richer summary."
-        : "Email a summary of your current Scenario Planning setup. Your default email client will open with the message pre-filled — you click Send. Attach the downloaded PDF for a richer summary.";
+        : "Email a summary of your current Build your own Scenario setup. Your default email client will open with the message pre-filled — you click Send. Attach the downloaded PDF for a richer summary.";
     }
     var geoBtn = document.getElementById("share-scenario-geojson-btn");
     if (geoBtn) {
