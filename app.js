@@ -3798,19 +3798,27 @@
   }
 
   function scheduleEmptyHexMeshBuild() {
-    function run() {
-      buildEmptyHexMeshNow();
-    }
-    if (typeof requestIdleCallback === "function") {
-      requestIdleCallback(
-        function () {
-          yieldToBrowser(0).then(run);
-        },
-        { timeout: 4000 }
-      );
-    } else {
-      yieldToBrowser(200).then(run);
-    }
+    /* Neighbors first (chunked, UI stays alive), then mesh; unlock sandbox after both. */
+    markHexHeavyReady(false);
+    yieldToBrowser(0)
+      .then(function () {
+        return yieldToBrowser(50);
+      })
+      .then(function () {
+        return scheduleHexNeighborRebuild();
+      })
+      .then(function () {
+        return yieldToBrowser(50);
+      })
+      .then(function () {
+        buildEmptyHexMeshNow();
+        markHexHeavyReady(true);
+      })
+      .catch(function (eSched) {
+        console.error("[hex mesh schedule]", eSched);
+        /* Allow drawing on student hexes even if mesh/neighbors failed. */
+        markHexHeavyReady(true);
+      });
   }
 
   function buildEmptyHexMeshNow() {
@@ -3845,7 +3853,8 @@
   /**
    * @param {*} payload worker hex result
    * @param {{ syncHeavy?: boolean }} [opts] when syncHeavy, build mesh/neighbors
-   *   before returning so the loading overlay can stay up through the freeze.
+   *   synchronously (can freeze the tab). Prefer deferred scheduling so Scenario
+   *   open stays responsive; overlay hides as soon as indexes are applied.
    */
   function applyDeferredHexFromWorker(payload, opts) {
     var syncHeavy = !!(opts && opts.syncHeavy);
@@ -3869,8 +3878,11 @@
     rebuildCharterAttendanceGradesLabelByMsid();
     if (mapLayersInitialized) {
       syncStudentHexLayer();
-      rebuildBoundarySandboxHexSourceFromIndex();
-      syncBoundarySandboxMapLayers();
+      /* Sandbox hex source is rebuilt after mesh (or immediately if syncHeavy). */
+      if (syncHeavy) {
+        rebuildBoundarySandboxHexSourceFromIndex();
+        syncBoundarySandboxMapLayers();
+      }
       try {
         renderSandboxSummaryTable();
       } catch (eSandbox) {
@@ -3880,9 +3892,13 @@
     if (syncHeavy) {
       buildEmptyHexMeshNow();
       buildHexNeighborsNow();
-    } else {
+      markHexHeavyReady(!!(payload && payload.index));
+    } else if (payload && payload.index) {
+      /* Mesh schedules neighbors afterward (chunked) — do not start both at once. */
+      markHexHeavyReady(false);
       scheduleEmptyHexMeshBuild();
-      scheduleHexNeighborRebuild();
+    } else {
+      markHexHeavyReady(false);
     }
   }
 
@@ -3903,20 +3919,25 @@
     }
   }
 
+  /**
+   * Build adjacency in small batches with yields so Scenario stays interactive.
+   * @returns {Promise<void>}
+   */
   function scheduleHexNeighborRebuild() {
-    function run() {
-      buildHexNeighborsNow();
+    if (
+      !STUDENT_HEX_INDEX ||
+      !STUDENT_HEX_INDEX.geometryByHexKey ||
+      typeof turf === "undefined" ||
+      !turf
+    ) {
+      return Promise.resolve();
     }
-    if (typeof requestIdleCallback === "function") {
-      requestIdleCallback(
-        function () {
-          yieldToBrowser(0).then(run);
-        },
-        { timeout: 8000 }
-      );
-    } else {
-      yieldToBrowser(500).then(run);
-    }
+    var geom = STUDENT_HEX_INDEX.geometryByHexKey;
+    return buildHexNeighborMapAsync(geom, { chunkSize: 15 }).then(function (nbr) {
+      if (nbr && STUDENT_HEX_INDEX && STUDENT_HEX_INDEX.geometryByHexKey === geom) {
+        STUDENT_HEX_INDEX.neighborsByHexKey = nbr;
+      }
+    });
   }
 
   /** Yield so the browser can paint and handle pan/zoom before heavy work. */
@@ -3994,11 +4015,58 @@
   var isoDataReady = false;
   var hexLoadPromise = null;
   var hexDataReady = false;
+  /** True after empty-hex mesh + neighbor graph finish (sandbox drawing safe). */
+  var hexHeavyReady = false;
   /** Map overlay purpose: "core" | "hex" | null */
   var mapOverlayMode = null;
 
   function emptyFeatureCollection() {
     return { type: "FeatureCollection", features: [] };
+  }
+
+  function isSandboxHexPrepReady() {
+    return !!(
+      hexDataReady &&
+      hexHeavyReady &&
+      STUDENT_HEX_INDEX &&
+      STUDENT_HEX_INDEX.geometryByHexKey
+    );
+  }
+
+  function syncSandboxHexPrepUi() {
+    var ready = isSandboxHexPrepReady();
+    var tools = document.querySelector(
+      "#scenario-subpanel-sandbox .sandbox-hex-tool-fieldset"
+    );
+    if (tools) {
+      tools.disabled = !ready;
+    }
+    /* Same map overlay as the initial load — keep it up until mesh/neighbors finish
+       so sandbox drawing cannot start on an incomplete hex grid. */
+    if (!ready) {
+      if (mapOverlayMode !== "core") {
+        mapOverlayMode = "hex";
+        showMapLoadingOverlayMessage(
+          "Loading school data",
+          "Thank you for your patience — this can take a few moments on your first visit. We are preparing every school, attendance boundary, and student residence layer."
+        );
+      }
+    } else if (mapOverlayMode !== "core") {
+      mapOverlayMode = null;
+      if (coreGeoApplied) hideMapLoadingOverlay();
+    }
+    try {
+      if (map && map.getCanvas && isBoundarySandboxViewActive()) {
+        map.getCanvas().style.cursor = ready ? "" : "wait";
+      }
+    } catch (eCur) {
+      /* ignore */
+    }
+  }
+
+  function markHexHeavyReady(ready) {
+    hexHeavyReady = !!ready;
+    syncSandboxHexPrepUi();
   }
 
   function showTravelShedLoadingToast(show) {
@@ -4231,16 +4299,17 @@
 
   /** Scenario Planning: load student hex indexes the first time that page opens. */
   function ensureStudentHexLoaded() {
-    if (hexDataReady && STUDENT_HEX_INDEX) {
+    if (hexDataReady && STUDENT_HEX_INDEX && hexHeavyReady) {
       return Promise.resolve();
     }
     if (hexLoadPromise) return hexLoadPromise;
     mapOverlayMode = "hex";
+    markHexHeavyReady(false);
 
     function paintStudentDataOverlay() {
       showMapLoadingOverlayMessage(
-        "Loading student data",
-        "Preparing enrollment and boundary scenario tools. This may take a moment."
+        "Loading school data",
+        "Thank you for your patience — this can take a few moments on your first visit. We are preparing every school, attendance boundary, and student residence layer."
       );
       /* Double rAF so the overlay is on-screen before parse/apply can freeze the UI. */
       return new Promise(function (resolve) {
@@ -4259,25 +4328,22 @@
       })
       .then(function () {
         showMapLoadingOverlayMessage(
-          "Loading student data",
-          "Preparing enrollment and boundary scenario tools. This may take a moment."
+          "Loading school data",
+          "Thank you for your patience — this can take a few moments on your first visit. We are preparing every school, attendance boundary, and student residence layer."
         );
         return runHeavyGeoWorker("hex", DATA.studentHexagons);
       })
       .then(function (msg) {
-        /* Keep overlay up through main-thread apply + mesh build (no yield). */
-        showMapLoadingOverlayMessage(
-          "Loading student data",
-          "Preparing enrollment and boundary scenario tools. This may take a moment."
-        );
-        applyDeferredHexFromWorker(msg, { syncHeavy: true });
+        /* Indexes only here — mesh/neighbors schedule with yields; overlay stays
+           until markHexHeavyReady(true) / syncSandboxHexPrepUi. */
+        applyDeferredHexFromWorker(msg);
         hexDataReady = !!(msg && msg.index);
       })
       .catch(function (errHex) {
         console.error("[student hex load]", errHex);
         showMapLoadingOverlayMessage(
-          "Loading student data",
-          "Preparing enrollment and boundary scenario tools. This may take a moment."
+          "Loading school data",
+          "Thank you for your patience — this can take a few moments on your first visit. We are preparing every school, attendance boundary, and student residence layer."
         );
         return smartFetch(DATA.studentHexagons)
           .then(function (r) {
@@ -4291,29 +4357,30 @@
               studentHexFc = data;
             }
             if (studentHexFc) {
-              applyDeferredHexFromWorker(
-                {
-                  index: buildStudentHexIndex(studentHexFc),
-                  travelIndex: buildTravelShedResidenceIndex(studentHexFc),
-                },
-                { syncHeavy: true }
-              );
+              applyDeferredHexFromWorker({
+                index: buildStudentHexIndex(studentHexFc),
+                travelIndex: buildTravelShedResidenceIndex(studentHexFc),
+              });
               hexDataReady = true;
             } else {
-              applyDeferredHexFromWorker(null, { syncHeavy: true });
+              applyDeferredHexFromWorker(null);
               hexDataReady = false;
+              markHexHeavyReady(false);
             }
           })
           .catch(function () {
-            applyDeferredHexFromWorker(null, { syncHeavy: true });
+            applyDeferredHexFromWorker(null);
             hexDataReady = false;
+            markHexHeavyReady(false);
           });
       })
       .then(function () {
-        if (mapOverlayMode === "hex") {
-          mapOverlayMode = null;
-          if (coreGeoApplied) hideMapLoadingOverlay();
-        }
+        /* Let the browser paint; overlay stays until mesh/neighbors finish
+           (syncSandboxHexPrepUi / markHexHeavyReady). */
+        return yieldToBrowser(0);
+      })
+      .then(function () {
+        syncSandboxHexPrepUi();
       });
     return hexLoadPromise;
   }
@@ -15952,6 +16019,10 @@
       if (!isBoundarySandboxViewActive()) {
         return;
       }
+      if (!isSandboxHexPrepReady()) {
+        syncSandboxHexPrepUi();
+        return;
+      }
       /* Mouse: only respond to the primary (left) button. Touch events have no
          `button` property, so don't reject them here. */
       if (
@@ -16117,10 +16188,8 @@
   /**
    * Undirected adjacency: two hexes touch on an edge. Built once from all hex geometries.
    * O(candidates) with coarse centroid grid; pair tests use turf.booleanTouches when available.
-   * @param {Object<string, *>} geometryByHexKey
-   * @returns {Object<string, string[]>|null} hexKey -> adjacent hex keys; null = skip adjacency
    */
-  function buildHexNeighborMap(geometryByHexKey) {
+  function prepareHexNeighborBuild(geometryByHexKey) {
     if (!geometryByHexKey) {
       return null;
     }
@@ -16136,19 +16205,14 @@
       return null;
     }
     var keys = Object.keys(geometryByHexKey);
-    if (!keys.length) {
-      return {};
-    }
     var n = keys.length;
-    if (n === 1) {
-      var o1 = Object.create(null);
-      o1[keys[0]] = [];
-      return o1;
-    }
     var CELL = 0.12;
     var bucket = Object.create(null);
+    var feats = Object.create(null);
+    var neighbors = Object.create(null);
     for (var bi = 0; bi < n; bi++) {
       var kB = keys[bi];
+      neighbors[kB] = [];
       var cB = polygonCentroid(geometryByHexKey[kB]);
       if (!cB || cB.length < 2) {
         continue;
@@ -16161,52 +16225,124 @@
       }
       bucket[bid].push(kB);
     }
-    var neighbors = Object.create(null);
-    for (var ni = 0; ni < n; ni++) {
-      neighbors[keys[ni]] = [];
+    return {
+      boolTouches: boolTouches,
+      keys: keys,
+      n: n,
+      bucket: bucket,
+      neighbors: neighbors,
+      feats: feats,
+      CELL: CELL,
+    };
+  }
+
+  function hexNeighborFeat(prep, key, geometryByHexKey) {
+    if (Object.prototype.hasOwnProperty.call(prep.feats, key)) {
+      return prep.feats[key];
     }
-    for (var i = 0; i < n; i++) {
-      var k1 = keys[i];
-      var c1 = polygonCentroid(geometryByHexKey[k1]);
-      if (!c1 || c1.length < 2) {
-        continue;
-      }
-      var cx1 = Math.floor(c1[0] / CELL);
-      var cy1 = Math.floor(c1[1] / CELL);
-      for (var ddx = -1; ddx <= 1; ddx++) {
-        for (var ddy = -1; ddy <= 1; ddy++) {
-          var bList = bucket[cx1 + ddx + "," + (cy1 + ddy)];
-          if (!bList) {
-            continue;
+    var f = null;
+    try {
+      f = turf.feature(geometryByHexKey[key]);
+    } catch (eFeat) {
+      f = null;
+    }
+    prep.feats[key] = f;
+    return f;
+  }
+
+  function hexNeighborProcessKey(prep, i, geometryByHexKey) {
+    var k1 = prep.keys[i];
+    var f1 = hexNeighborFeat(prep, k1, geometryByHexKey);
+    if (!f1) return;
+    var c1 = polygonCentroid(geometryByHexKey[k1]);
+    if (!c1 || c1.length < 2) return;
+    var cx1 = Math.floor(c1[0] / prep.CELL);
+    var cy1 = Math.floor(c1[1] / prep.CELL);
+    for (var ddx = -1; ddx <= 1; ddx++) {
+      for (var ddy = -1; ddy <= 1; ddy++) {
+        var bList = prep.bucket[cx1 + ddx + "," + (cy1 + ddy)];
+        if (!bList) continue;
+        for (var t = 0; t < bList.length; t++) {
+          var k2 = bList[t];
+          if (k2 === k1 || k2 <= k1) continue;
+          var f2 = hexNeighborFeat(prep, k2, geometryByHexKey);
+          if (!f2) continue;
+          var touches = false;
+          try {
+            touches = prep.boolTouches(f1, f2);
+          } catch (eAdj) {
+            /* ignore */
           }
-          for (var t = 0; t < bList.length; t++) {
-            var k2 = bList[t];
-            if (k2 === k1) {
-              continue;
-            }
-            if (k2 <= k1) {
-              continue;
-            }
-            var g1 = geometryByHexKey[k1];
-            var g2 = geometryByHexKey[k2];
-            if (!g1 || !g2) {
-              continue;
-            }
-            var touches = false;
-            try {
-              touches = boolTouches(turf.feature(g1), turf.feature(g2));
-            } catch (eAdj) {
-              /* ignore */
-            }
-            if (touches) {
-              neighbors[k1].push(k2);
-              neighbors[k2].push(k1);
-            }
+          if (touches) {
+            prep.neighbors[k1].push(k2);
+            prep.neighbors[k2].push(k1);
           }
         }
       }
     }
-    return neighbors;
+  }
+
+  /**
+   * @param {Object<string, *>} geometryByHexKey
+   * @returns {Object<string, string[]>|null} hexKey -> adjacent hex keys; null = skip adjacency
+   */
+  function buildHexNeighborMap(geometryByHexKey) {
+    var prep = prepareHexNeighborBuild(geometryByHexKey);
+    if (!prep) return null;
+    if (!prep.n) return {};
+    if (prep.n === 1) {
+      var o1 = Object.create(null);
+      o1[prep.keys[0]] = [];
+      return o1;
+    }
+    for (var i = 0; i < prep.n; i++) {
+      hexNeighborProcessKey(prep, i, geometryByHexKey);
+    }
+    return prep.neighbors;
+  }
+
+  /**
+   * Same as buildHexNeighborMap but yields between batches so the UI stays responsive.
+   * @param {Object<string, *>} geometryByHexKey
+   * @param {{ chunkSize?: number }} [opts]
+   * @returns {Promise<Object<string, string[]>|null>}
+   */
+  function buildHexNeighborMapAsync(geometryByHexKey, opts) {
+    opts = opts || {};
+    var chunkSize =
+      typeof opts.chunkSize === "number" && opts.chunkSize > 0
+        ? opts.chunkSize
+        : 15;
+    return new Promise(function (resolve) {
+      var prep = prepareHexNeighborBuild(geometryByHexKey);
+      if (!prep) {
+        resolve(null);
+        return;
+      }
+      if (!prep.n) {
+        resolve({});
+        return;
+      }
+      if (prep.n === 1) {
+        var o1 = Object.create(null);
+        o1[prep.keys[0]] = [];
+        resolve(o1);
+        return;
+      }
+      var i = 0;
+      function step() {
+        var end = Math.min(i + chunkSize, prep.n);
+        for (; i < end; i++) {
+          hexNeighborProcessKey(prep, i, geometryByHexKey);
+        }
+        if (i < prep.n) {
+          yieldToBrowser(0).then(step);
+        } else {
+          resolve(prep.neighbors);
+        }
+      }
+      step();
+    });
   }
 
   /**
@@ -18952,6 +19088,7 @@
       panScn.hidden = !onScn;
       panSbx.hidden = onScn;
       if (which2 === "sandbox") {
+        syncSandboxHexPrepUi();
         renderSandboxBoundariesPanel();
         updateSandboxSelectedHexCountUi();
         renderSandboxSummaryTable();

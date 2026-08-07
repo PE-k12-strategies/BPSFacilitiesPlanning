@@ -615,25 +615,38 @@ body.map-warming:not(.dashboard-unlocked) #dashboard {
   box-shadow: 0 0 0 3px rgba(255, 82, 13, 0.45);
 }
 
-/* "Back to Dashboard" button shown only when the welcome page is being
-   re-opened as a tutorial review (the `.login-gate--review` modifier is
-   toggled by the View Tutorial button). In review mode the enter block is
-   hidden and this button takes its place. */
-.welcome-back-btn {
-  max-width: 260px;
+/* Review/tutorial revisit: Back to Dashboard + Take the Survey. */
+.welcome-review-actions {
+  display: none;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 12px;
   margin-top: 18px;
 }
 
-.welcome-back-btn[hidden] {
+.welcome-review-actions[hidden] {
   display: none !important;
+}
+
+.welcome-back-btn {
+  max-width: 260px;
+  margin-top: 0;
+}
+
+.welcome-survey-btn--review {
+  max-width: 260px;
 }
 
 .login-gate--review .welcome-enter-block {
   display: none;
 }
 
-.login-gate--review .welcome-back-btn[hidden] {
-  display: inline-block !important;
+.login-gate--review .welcome-review-actions {
+  display: flex;
+}
+
+.login-gate--review .welcome-review-actions[hidden] {
+  display: flex !important;
 }
 
 .welcome-changelog {
@@ -2069,6 +2082,11 @@ summary.panel-howto__title:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.sandbox-hex-tool-fieldset:disabled {
+  opacity: 0.55;
+  pointer-events: none;
 }
 
 .sandbox-hint,

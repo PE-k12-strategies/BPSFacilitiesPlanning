@@ -407,14 +407,23 @@
                 </a>
               </div>
             </div>
-            <button
-              type="button"
-              id="welcome-back-to-dashboard-btn"
-              class="login-gate__submit welcome-back-btn"
-              hidden
-            >
-              Back to Dashboard
-            </button>
+            <div class="welcome-review-actions" id="welcome-review-actions" hidden>
+              <button
+                type="button"
+                id="welcome-back-to-dashboard-btn"
+                class="login-gate__submit welcome-back-btn"
+              >
+                Back to Dashboard
+              </button>
+              <a
+                class="login-gate__submit welcome-survey-btn welcome-survey-btn--review"
+                href="https://docs.google.com/forms/d/e/1FAIpQLSczqbsV7tOwe8UVmXN50WWDmG-xpwE8g59dSCoKxprns9IUyA/viewform"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Take the Survey
+              </a>
+            </div>
           </div>
 
           <div class="welcome-hero__right" id="welcome-video-section">
@@ -501,7 +510,7 @@
             aria-haspopup="dialog"
             aria-controls="welcome-changelog-overlay"
           >
-            Change Log - Last Updated July 31, 2026
+            Change Log - Last Updated August 7, 2026
           </button>
         </p>
       </div>
@@ -530,6 +539,16 @@
           </button>
         </header>
         <div class="welcome-changelog-card__body">
+          <section class="welcome-changelog-entry">
+            <h3 class="welcome-changelog-entry__date">August 7, 2026</h3>
+            <ul class="welcome-changelog-entry__list">
+              <li>
+                Adjusted loading protocol for Boundary Sandbox to improve loading
+                speeds.
+              </li>
+              <li>Added direct link to survey from tutorial page.</li>
+            </ul>
+          </section>
           <section class="welcome-changelog-entry">
             <h3 class="welcome-changelog-entry__date">July 31, 2026</h3>
             <ul class="welcome-changelog-entry__list">
@@ -2479,6 +2498,8 @@
           gate.hidden = false;
           dash.hidden = true;
           document.body.classList.remove("dashboard-unlocked");
+          var reviewActions = document.getElementById("welcome-review-actions");
+          if (reviewActions) reviewActions.hidden = false;
           setWelcomeTutorialStart(startSeconds, autoplay);
           try {
             window.scrollTo({ top: 0, behavior: "auto" });
@@ -2499,6 +2520,8 @@
           gate.hidden = true;
           dash.hidden = false;
           document.body.classList.add("dashboard-unlocked");
+          var reviewActions = document.getElementById("welcome-review-actions");
+          if (reviewActions) reviewActions.hidden = true;
           try {
             window.dispatchEvent(new Event("resize"));
           } catch (e) {
